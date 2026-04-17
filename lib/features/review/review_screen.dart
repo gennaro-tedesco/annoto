@@ -27,6 +27,17 @@ class ReviewScreen extends StatefulWidget {
 }
 
 class _ReviewScreenState extends State<ReviewScreen> {
+  static const _tagOrder = [
+    'White',
+    'Black',
+    'Event',
+    'Site',
+    'Date',
+    'Round',
+    'Result',
+  ];
+
+  final Map<String, TextEditingController> _headerControllers = {};
   List<_MovePair> _moves = [];
   bool _initialised = false;
 
@@ -35,23 +46,43 @@ class _ReviewScreenState extends State<ReviewScreen> {
     super.didChangeDependencies();
     if (!_initialised) {
       final pgn = ModalRoute.of(context)!.settings.arguments as String? ?? '';
-      _moves = _parsePgn(pgn);
+      _parsePgn(pgn);
       _initialised = true;
     }
   }
 
   @override
   void dispose() {
+    for (final c in _headerControllers.values) {
+      c.dispose();
+    }
     for (final move in _moves) {
       move.dispose();
     }
     super.dispose();
   }
 
-  List<_MovePair> _parsePgn(String pgn) {
+  void _parsePgn(String pgn) {
+    final headerRegex = RegExp(r'\[(\w+)\s+"([^"]*)"\]');
+    final headers = <String, String>{};
+    for (final match in headerRegex.allMatches(pgn)) {
+      headers[match.group(1)!] = match.group(2)!;
+    }
+    for (final tag in _tagOrder) {
+      _headerControllers[tag] = TextEditingController(
+        text: headers[tag] ?? '?',
+      );
+    }
+
+    final movesMatch = RegExp(r'\n\n(.+)', dotAll: true).firstMatch(pgn);
+    final movesText = movesMatch?.group(1)?.trim() ?? pgn;
+    _moves = _parseMoves(movesText);
+  }
+
+  List<_MovePair> _parseMoves(String text) {
     final regex = RegExp(r'(\d+)\.\s*(\S+)(?:\s+(\S+))?');
     return regex
-        .allMatches(pgn)
+        .allMatches(text)
         .map(
           (m) => _MovePair(
             number: int.parse(m.group(1)!),
@@ -64,12 +95,18 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
   String _serialisePgn() {
     final buffer = StringBuffer();
+    for (final tag in _tagOrder) {
+      final value = _headerControllers[tag]?.text.trim() ?? '?';
+      buffer.writeln('[$tag "$value"]');
+    }
+    buffer.writeln();
     for (final move in _moves) {
       buffer.write('${move.number}. ${move.white.text}');
       if (move.black.text.isNotEmpty) buffer.write(' ${move.black.text}');
       buffer.write(' ');
     }
-    buffer.write('*');
+    final result = _headerControllers['Result']?.text.trim() ?? '*';
+    buffer.write(result);
     return buffer.toString().trim();
   }
 
@@ -110,14 +147,41 @@ class _ReviewScreenState extends State<ReviewScreen> {
         child: Column(
           children: [
             Expanded(
-              child: ListView.builder(
+              child: ListView(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 8,
                 ),
-                itemCount: _moves.length,
-                itemBuilder: (context, index) =>
-                    _buildMoveRow(context, _moves[index]),
+                children: [
+                  ..._tagOrder.map(
+                    (tag) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 64,
+                            child: Text(
+                              tag,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: TextField(
+                              controller: _headerControllers[tag],
+                              decoration: InputDecoration(hintText: tag),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Divider(color: theme.colorScheme.outlineVariant),
+                  const SizedBox(height: 4),
+                  ..._moves.map((move) => _buildMoveRow(context, move)),
+                ],
               ),
             ),
             Padding(

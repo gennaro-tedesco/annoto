@@ -25,14 +25,30 @@ Deno.serve(async (req: Request) => {
   const provider = getProvider(providerName)
 
   try {
-    const pgn = await provider.extractPgn(image, mimeType ?? 'image/jpeg')
-    return reply({ pgn })
+    const data = await provider.extractPgn(image, mimeType ?? 'image/jpeg')
+    return reply({ pgn: assemblePgn(data) })
   } catch (err) {
     console.error('extract-pgn caught error:', err)
     const message = err instanceof Error ? err.message : 'unknown_error'
     return reply({ error: message }, 502)
   }
 })
+
+const _tagOrder = ['Event', 'Site', 'Date', 'Round', 'White', 'Black', 'Result']
+
+function assemblePgn(data: { headers: Record<string, string>; moves: string }): string {
+  let pgn = ''
+  for (const tag of _tagOrder) {
+    pgn += `[${tag} "${data.headers[tag] ?? '?'}"]\n`
+  }
+  const moves = data.moves.trim()
+  const result = data.headers['Result'] ?? '*'
+  pgn += '\n' + moves
+  if (!moves.endsWith(result) && !moves.endsWith('*')) {
+    pgn += ' ' + result
+  }
+  return pgn
+}
 
 function reply(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

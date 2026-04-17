@@ -1,17 +1,50 @@
+export interface PgnData {
+  headers: Record<string, string>
+  moves: string
+}
+
 export interface PgnProvider {
-  extractPgn(imageBase64: string, mimeType: string): Promise<string>
+  extractPgn(imageBase64: string, mimeType: string): Promise<PgnData>
 }
 
 const _prompt = [
   'You are a chess scoresheet transcription engine.',
-  'Given the image of a handwritten or printed chess scoresheet, extract all the moves and return them as a single valid PGN string.',
+  'Given the image of a handwritten or printed chess scoresheet, extract the game information and moves and return them as a JSON object with this exact structure:',
+  '{',
+  '  "headers": {',
+  '    "White": "player name or ?",',
+  '    "Black": "player name or ?",',
+  '    "Event": "tournament name or ?",',
+  '    "Site": "location or ?",',
+  '    "Date": "YYYY.MM.DD or ?",',
+  '    "Round": "round number or ?",',
+  '    "Result": "1-0 or 0-1 or 1/2-1/2 or *"',
+  '  },',
+  '  "moves": "1. e4 e5 2. Nf3 Nc6 ..."',
+  '}',
   'Rules:',
-  '- Use Standard Algebraic Notation (SAN) for every move.',
+  '- Use Standard Algebraic Notation (SAN) for every move in the moves field.',
   '- Include move numbers (e.g. 1. e4 e5 2. Nf3 Nc6).',
-  "- If a move is illegible, use '?' as a placeholder (e.g. 1. e4 ?).",
-  '- Do not include any commentary, annotations, headers, or result tags.',
-  '- Output ONLY the raw move-text PGN, nothing else. Example: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6',
+  "- If a move is illegible use '?' as a placeholder (e.g. 1. e4 ?).",
+  '- If a header value is not visible on the scoresheet use "?" as the value.',
+  '- Date must be in YYYY.MM.DD format if present.',
+  '- Result must be one of: "1-0", "0-1", "1/2-1/2", or "*".',
+  '- Output ONLY the JSON object, nothing else.',
 ].join('\n')
+
+function _parsePgnData(content: string): PgnData {
+  const stripped = content.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim()
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(stripped)
+  } catch {
+    throw new Error('invalid_json')
+  }
+  const obj = parsed as Record<string, unknown>
+  if (typeof obj?.moves !== 'string') throw new Error('schema_mismatch')
+  const headers = (obj.headers as Record<string, string>) ?? {}
+  return { headers, moves: obj.moves }
+}
 
 function _googleErrorCode(status: number, body: string): string {
   if (status === 503 && body.includes('"status": "UNAVAILABLE"')) return 'provider_unavailable'
@@ -41,7 +74,7 @@ export type GoogleConfig = { apiKey: string; model: string }
 export class GoogleProvider implements PgnProvider {
   constructor(private readonly cfg: GoogleConfig) {}
 
-  async extractPgn(imageBase64: string, mimeType: string): Promise<string> {
+  async extractPgn(imageBase64: string, mimeType: string): Promise<PgnData> {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${this.cfg.model}:generateContent?key=${this.cfg.apiKey}`,
       {
@@ -56,6 +89,7 @@ export class GoogleProvider implements PgnProvider {
               ],
             },
           ],
+          generationConfig: { response_mime_type: 'application/json' },
         }),
       },
     )
@@ -69,9 +103,9 @@ export class GoogleProvider implements PgnProvider {
     }
 
     const data = await res.json()
-    const pgn: string = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? ''
-    if (!pgn) throw new Error('empty_model_output')
-    return pgn
+    const content: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+    if (!content.trim()) throw new Error('empty_model_output')
+    return _parsePgnData(content)
   }
 }
 
@@ -80,7 +114,7 @@ export type MistralConfig = { apiKey: string; model: string }
 export class MistralProvider implements PgnProvider {
   constructor(private readonly cfg: MistralConfig) {}
 
-  async extractPgn(imageBase64: string, mimeType: string): Promise<string> {
+  async extractPgn(imageBase64: string, mimeType: string): Promise<PgnData> {
     const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -99,6 +133,7 @@ export class MistralProvider implements PgnProvider {
             ],
           },
         ],
+        response_format: { type: 'json_object' },
         temperature: 0,
       }),
     })
@@ -110,9 +145,9 @@ export class MistralProvider implements PgnProvider {
     }
 
     const data = await res.json()
-    const pgn: string = (data?.choices?.[0]?.message?.content ?? '').trim()
-    if (!pgn) throw new Error('empty_model_output')
-    return pgn
+    const content: string = data?.choices?.[0]?.message?.content ?? ''
+    if (!content.trim()) throw new Error('empty_model_output')
+    return _parsePgnData(content)
   }
 }
 
@@ -121,7 +156,7 @@ export type GroqConfig = { apiKey: string; model: string }
 export class GroqProvider implements PgnProvider {
   constructor(private readonly cfg: GroqConfig) {}
 
-  async extractPgn(imageBase64: string, mimeType: string): Promise<string> {
+  async extractPgn(imageBase64: string, mimeType: string): Promise<PgnData> {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -139,6 +174,7 @@ export class GroqProvider implements PgnProvider {
             ],
           },
         ],
+        response_format: { type: 'json_object' },
         temperature: 0,
       }),
     })
@@ -150,8 +186,8 @@ export class GroqProvider implements PgnProvider {
     }
 
     const data = await res.json()
-    const pgn: string = (data?.choices?.[0]?.message?.content ?? '').trim()
-    if (!pgn) throw new Error('empty_model_output')
-    return pgn
+    const content: string = data?.choices?.[0]?.message?.content ?? ''
+    if (!content.trim()) throw new Error('empty_model_output')
+    return _parsePgnData(content)
   }
 }
