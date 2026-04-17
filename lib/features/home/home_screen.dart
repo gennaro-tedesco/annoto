@@ -1,8 +1,12 @@
 import 'dart:convert';
 
+import 'package:annoto/app/app_state.dart';
 import 'package:annoto/app/ui_sizes.dart';
+import 'package:annoto/features/game_detail/game_detail_screen.dart';
 import 'package:annoto/features/review/review_screen.dart';
 import 'package:annoto/features/settings/settings_screen.dart';
+import 'package:annoto/models/scoresheet.dart';
+import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/widgets/gradient_text.dart';
 import 'package:file_picker/file_picker.dart';
@@ -30,6 +34,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   _Tab _tab = _Tab.home;
+  List<Scoresheet> _scoresheets = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadScoresheets();
+  }
+
+  Future<void> _loadScoresheets() async {
+    final scoresheets = await scoresheetRepository.getAll();
+    if (!mounted) return;
+    setState(() => _scoresheets = scoresheets);
+  }
 
   void _selectTab(_Tab tab) {
     setState(() {
@@ -105,27 +122,42 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
+    String? errorMessage;
+    String? pgn;
+
     try {
+      final provider = AppStateScope.of(context).selectedProvider.providerKey;
       final response = await Supabase.instance.client.functions.invoke(
         'extract-pgn',
-        body: {'image': b64, 'mimeType': mimeType},
+        body: {'image': b64, 'mimeType': mimeType, 'provider': provider},
       );
-      if (!mounted) return;
-      Navigator.of(context).pop();
       final data = response.data as Map<String, dynamic>;
       if (data['error'] != null) {
-        NotificationService.showError(data['error'] as String);
-        return;
+        errorMessage = _errorMessage(data['error'] as String);
+      } else {
+        pgn = data['pgn'] as String? ?? '';
       }
-      final pgn = data['pgn'] as String? ?? '';
-      await Navigator.of(
-        context,
-      ).pushNamed(ReviewScreen.routeName, arguments: pgn);
+    } on FunctionException catch (e) {
+      final details = e.details;
+      final code = details is Map<String, dynamic>
+          ? details['error']?.toString()
+          : null;
+      errorMessage = _errorMessage(code ?? 'extraction_failed');
     } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      NotificationService.showError('Failed to extract scoresheet.');
+      errorMessage = 'Failed to extract scoresheet.';
+    } finally {
+      if (mounted) Navigator.of(context).pop();
     }
+
+    if (!mounted) return;
+    if (errorMessage != null) {
+      NotificationService.showError(errorMessage);
+      return;
+    }
+    await Navigator.of(
+      context,
+    ).pushNamed(ReviewScreen.routeName, arguments: pgn);
+    await _loadScoresheets();
   }
 
   @override
@@ -169,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: _tab == _Tab.home
-          ? _buildHomeEmptyState(context)
+          ? _buildHomeTab2(context)
           : _buildFilesEmptyState(context),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: SizedBox(
@@ -248,38 +280,136 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHomeEmptyState(BuildContext context) {
+  Widget _buildHomeTab2(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      children: [
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.description_outlined,
-                  size: 64,
-                  color: theme.colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.35,
+    if (_scoresheets.isEmpty) {
+      return Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.description_outlined,
+                    size: 64,
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.35,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No scoresheets yet',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 16),
+                  Text(
+                    'No scoresheets yet',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text('Tap + to add one', style: theme.textTheme.bodySmall),
-              ],
+                  const SizedBox(height: 4),
+                  Text('Tap + to add one', style: theme.textTheme.bodySmall),
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: _tabStripHeight),
-      ],
+          const SizedBox(height: _tabStripHeight),
+        ],
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+      itemCount: _scoresheets.length,
+      itemBuilder: (context, index) {
+        final scoresheet = _scoresheets[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Dismissible(
+            key: ValueKey(scoresheet.id),
+            direction: DismissDirection.endToStart,
+            background: const SizedBox.shrink(),
+            secondaryBackground: Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.error,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Icon(Icons.delete, color: theme.colorScheme.onError),
+            ),
+            confirmDismiss: (_) async {
+              await scoresheetRepository.delete(scoresheet.id);
+              setState(() => _scoresheets.removeAt(index));
+              return false;
+            },
+            child: _buildScoresheetCard(context, scoresheet),
+          ),
+        );
+      },
     );
+  }
+
+  Widget _buildScoresheetCard(BuildContext context, Scoresheet scoresheet) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: () => Navigator.of(
+          context,
+        ).pushNamed(GameDetailScreen.routeName, arguments: scoresheet),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(scoresheet.filename, style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatDate(scoresheet.createdAt),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Icon(
+                Icons.chevron_right,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _errorMessage(String code) => switch (code) {
+    'quota_exceeded' =>
+      'AI provider quota exceeded. Try again later or switch provider.',
+    'provider_unavailable' =>
+      'AI provider is currently unavailable. Try again later.',
+    'model_not_found' => 'The selected AI model is unavailable.',
+    'empty_model_output' => 'The AI returned no content. Try a clearer image.',
+    'unauthorized' => 'Authentication required. Please sign in.',
+    'payload_too_large' => 'Image is too large. Please use a smaller file.',
+    _ => 'Extraction failed. Try again.',
+  };
+
+  String _formatDate(DateTime dt) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
 
   Widget _buildFilesEmptyState(BuildContext context) {

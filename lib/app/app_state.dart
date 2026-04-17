@@ -16,6 +16,17 @@ extension AiProviderLabel on AiProvider {
         return 'Groq';
     }
   }
+
+  String get providerKey {
+    switch (this) {
+      case AiProvider.gemini:
+        return 'google';
+      case AiProvider.mistral:
+        return 'mistral';
+      case AiProvider.groq:
+        return 'groq';
+    }
+  }
 }
 
 class SessionState {

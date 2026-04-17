@@ -1,48 +1,42 @@
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
-const GEMINI_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getProvider } from './config.ts'
 
-const PROMPT = `You are a chess scoresheet transcription engine.
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
+const MAX_BYTES = 10 * 1024 * 1024
 
-Given the image of a handwritten or printed chess scoresheet, extract all the moves and return them as a single valid PGN string.
+Deno.serve(async (req: Request) => {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader) return reply({ error: 'unauthorized' }, 401)
 
-Rules:
-- Use Standard Algebraic Notation (SAN) for every move.
-- Include move numbers (e.g. 1. e4 e5 2. Nf3 Nc6).
-- If a move is illegible, use '?' as a placeholder (e.g. 1. e4 ?).
-- Do not include any commentary, annotations, headers, or result tags.
-- Output ONLY the raw move-text PGN, nothing else. Example: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6`;
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  })
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser()
+  if (authError || !user) return reply({ error: 'unauthorized' }, 401)
 
-Deno.serve(async (req) => {
+  const { image, mimeType, provider: providerName } = await req.json()
+  if (!image) return reply({ error: 'empty_input' }, 400)
+  if (image.length > MAX_BYTES) return reply({ error: 'payload_too_large' }, 413)
+
+  const provider = getProvider(providerName)
+
   try {
-    const { image, mimeType } = await req.json();
-
-    const geminiRes = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: PROMPT },
-              { inline_data: { mime_type: mimeType, data: image } },
-            ],
-          },
-        ],
-      }),
-    });
-
-    const geminiData = await geminiRes.json();
-    const pgn: string =
-      geminiData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-
-    return new Response(JSON.stringify({ pgn }), {
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    const pgn = await provider.extractPgn(image, mimeType ?? 'image/jpeg')
+    return reply({ pgn })
+  } catch (err) {
+    console.error('extract-pgn caught error:', err)
+    const message = err instanceof Error ? err.message : 'unknown_error'
+    return reply({ error: message }, 502)
   }
-});
+})
+
+function reply(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}

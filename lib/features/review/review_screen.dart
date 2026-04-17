@@ -1,3 +1,4 @@
+import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:flutter/material.dart';
 
@@ -72,10 +73,17 @@ class _ReviewScreenState extends State<ReviewScreen> {
     return buffer.toString().trim();
   }
 
-  void _confirm() {
-    _serialisePgn();
-    NotificationService.showInfo('Scoresheet saved.');
-    Navigator.of(context).pop();
+  Future<void> _confirm() async {
+    final pgn = _serialisePgn();
+    try {
+      await scoresheetRepository.save(pgn);
+      if (!mounted) return;
+      NotificationService.showInfo('Scoresheet saved.');
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      if (!mounted) return;
+      NotificationService.showError('Failed to save scoresheet.');
+    }
   }
 
   @override
@@ -117,7 +125,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _confirm,
+                  onPressed: () => _confirm(),
                   child: const Text('Confirm'),
                 ),
               ),

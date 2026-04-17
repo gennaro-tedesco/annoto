@@ -12,6 +12,7 @@ run:
 build:
 	flutter build apk --release --target-platform android-arm64 --build-number=$(BUILD_NUMBER) --dart-define=APP_VERSION=$(APP_VERSION) --dart-define-from-file=config.json
 
+SUPABASE_PROJECT_REF := $(shell jq -r '.SUPABASE_PROJECT_REF' config.json)
+
 supabase_deploy:
-	@if [ ! -f "supabase/.temp/project-ref" ]; then echo "supabase/.temp/project-ref not found"; exit 1; fi
-	supabase functions deploy extract-items --project-ref "$$(tr -d '\n' < supabase/.temp/project-ref)" --no-verify-jwt
+	supabase functions deploy extract-pgn --no-verify-jwt --project-ref $(SUPABASE_PROJECT_REF)
