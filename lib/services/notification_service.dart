@@ -33,8 +33,8 @@ class NotificationService {
         foreground: theme.colorScheme.onSurface,
       ),
       NotificationType.error => (
-        background: theme.colorScheme.errorContainer,
-        foreground: theme.colorScheme.onErrorContainer,
+        background: theme.colorScheme.error,
+        foreground: theme.colorScheme.onError,
       ),
     };
 

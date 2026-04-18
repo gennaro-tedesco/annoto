@@ -315,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       itemCount: _scoresheets.length,
       itemBuilder: (context, index) {
         final scoresheet = _scoresheets[index];
