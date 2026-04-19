@@ -2,12 +2,15 @@ import { GoogleProvider, GroqProvider, MistralProvider, PgnProvider } from './pr
 
 const googleProvider: PgnProvider = new GoogleProvider({
   apiKey: Deno.env.get('GEMINI_API_KEY')!,
-  model: Deno.env.get('GOOGLE_MODEL') ?? 'gemini-2.0-flash',
+  model: Deno.env.get('GOOGLE_MODEL') ?? 'gemini-3.1-flash-lite-preview',
 })
 
 const mistralProvider: PgnProvider = new MistralProvider({
   apiKey: Deno.env.get('MISTRAL_API_KEY')!,
-  model: Deno.env.get('MISTRAL_MODEL') ?? 'mistral-large-latest',
+  extractionModel:
+    Deno.env.get('MISTRAL_EXTRACTION_MODEL') ??
+    Deno.env.get('MISTRAL_MODEL') ??
+    'mistral-large-latest',
 })
 
 const groqProvider: PgnProvider = new GroqProvider({

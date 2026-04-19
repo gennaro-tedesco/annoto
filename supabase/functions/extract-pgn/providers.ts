@@ -7,6 +7,29 @@ export interface PgnProvider {
   extractPgn(imageBase64: string, mimeType: string): Promise<PgnData>
 }
 
+const _pgnResponseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    headers: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        White: { type: 'string' },
+        Black: { type: 'string' },
+        Event: { type: 'string' },
+        Site: { type: 'string' },
+        Date: { type: 'string' },
+        Round: { type: 'string' },
+        Result: { type: 'string' },
+      },
+      required: ['White', 'Black', 'Event', 'Site', 'Date', 'Round', 'Result'],
+    },
+    moves: { type: 'string' },
+  },
+  required: ['headers', 'moves'],
+} as const
+
 const _prompt = [
   'You are a chess scoresheet transcription engine.',
   'Given the image of a handwritten or printed chess scoresheet, extract the game information and moves and return them as a JSON object with this exact structure:',
@@ -46,6 +69,23 @@ function _parsePgnData(content: string): PgnData {
   return { headers, moves: obj.moves }
 }
 
+function _messageContentToString(content: unknown): string {
+  if (typeof content == 'string') return content
+  if (content && typeof content == 'object') return JSON.stringify(content)
+  return ''
+}
+
+function _responseFormatJsonSchema() {
+  return {
+    type: 'json_schema',
+    json_schema: {
+      name: 'chess_scoresheet',
+      strict: true,
+      schema: _pgnResponseSchema,
+    },
+  }
+}
+
 function _googleErrorCode(status: number, body: string): string {
   if (status === 503 && body.includes('"status": "UNAVAILABLE"')) return 'provider_unavailable'
   if (status === 404 || body.includes('not found') || body.includes('not supported')) return 'model_not_found'
@@ -75,6 +115,14 @@ export class GoogleProvider implements PgnProvider {
   constructor(private readonly cfg: GoogleConfig) {}
 
   async extractPgn(imageBase64: string, mimeType: string): Promise<PgnData> {
+    return this._extractWithInlineData(imageBase64, mimeType, 'empty_model_output')
+  }
+
+  private async _extractWithInlineData(
+    dataBase64: string,
+    mimeType: string,
+    emptyResultCode: string,
+  ): Promise<PgnData> {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${this.cfg.model}:generateContent?key=${this.cfg.apiKey}`,
       {
@@ -84,7 +132,7 @@ export class GoogleProvider implements PgnProvider {
           contents: [
             {
               parts: [
-                { inline_data: { mime_type: mimeType, data: imageBase64 } },
+                { inline_data: { mime_type: mimeType, data: dataBase64 } },
                 { text: _prompt },
               ],
             },
@@ -103,13 +151,23 @@ export class GoogleProvider implements PgnProvider {
     }
 
     const data = await res.json()
+    console.log('Google API response', JSON.stringify(data).slice(0, 500))
     const content: string = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-    if (!content.trim()) throw new Error('empty_model_output')
-    return _parsePgnData(content)
+    if (!content.trim()) {
+      throw new Error(emptyResultCode)
+    }
+    try {
+      return _parsePgnData(content)
+    } catch (err) {
+      if (emptyResultCode == 'empty_model_output') {
+        throw new Error('invalid_model_output')
+      }
+      throw err
+    }
   }
 }
 
-export type MistralConfig = { apiKey: string; model: string }
+export type MistralConfig = { apiKey: string; extractionModel: string }
 
 export class MistralProvider implements PgnProvider {
   constructor(private readonly cfg: MistralConfig) {}
@@ -123,7 +181,7 @@ export class MistralProvider implements PgnProvider {
         Accept: 'application/json',
       },
       body: JSON.stringify({
-        model: this.cfg.model,
+        model: this.cfg.extractionModel,
         messages: [
           {
             role: 'user',
@@ -133,7 +191,7 @@ export class MistralProvider implements PgnProvider {
             ],
           },
         ],
-        response_format: { type: 'json_object' },
+        response_format: _responseFormatJsonSchema(),
         temperature: 0,
       }),
     })
@@ -145,7 +203,7 @@ export class MistralProvider implements PgnProvider {
     }
 
     const data = await res.json()
-    const content: string = data?.choices?.[0]?.message?.content ?? ''
+    const content = _messageContentToString(data?.choices?.[0]?.message?.content)
     if (!content.trim()) throw new Error('empty_model_output')
     return _parsePgnData(content)
   }
