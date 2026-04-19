@@ -67,6 +67,11 @@ class ScoresheetRepository {
     return entry;
   }
 
+  Future<void> update(String id, String pgn) async {
+    final dir = await _dir();
+    await File('${dir.path}/$id.pgn').writeAsString(pgn);
+  }
+
   Future<void> delete(String id) async {
     final dir = await _dir();
     final pgnFile = File('${dir.path}/$id.pgn');

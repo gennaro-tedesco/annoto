@@ -9,7 +9,6 @@ import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/widgets/gradient_text.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -68,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Take photo'),
+              title: const Text('Take a photo'),
               onTap: () async {
                 Navigator.pop(sheetContext);
                 final image = await ImagePicker().pickImage(
@@ -79,27 +78,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from gallery'),
+              title: const Text('Upload from gallery'),
               onTap: () async {
                 Navigator.pop(sheetContext);
                 final image = await ImagePicker().pickImage(
                   source: ImageSource.gallery,
                 );
                 if (image != null && mounted) await _processScoresheet(image);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.upload_file_outlined),
-              title: const Text('Upload from files'),
-              onTap: () async {
-                Navigator.pop(sheetContext);
-                final result = await FilePicker.platform.pickFiles(
-                  type: FileType.image,
-                );
-                final path = result?.files.single.path;
-                if (path != null && mounted) {
-                  await _processScoresheet(XFile(path));
-                }
               },
             ),
           ],
@@ -360,9 +345,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return Card(
       margin: EdgeInsets.zero,
       child: InkWell(
-        onTap: () => Navigator.of(
-          context,
-        ).pushNamed(GameDetailScreen.routeName, arguments: scoresheet),
+        onTap: () async {
+          final updated = await Navigator.of(
+            context,
+          ).pushNamed(GameDetailScreen.routeName, arguments: scoresheet);
+          if (updated == true && mounted) {
+            await _loadScoresheets();
+          }
+        },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),

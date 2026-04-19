@@ -117,7 +117,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
     try {
       await scoresheetRepository.save(pgn);
       if (!mounted) return;
-      NotificationService.showInfo('Scoresheet saved.');
       Navigator.of(context).pop(true);
     } catch (_) {
       if (!mounted) return;

@@ -33,7 +33,6 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   dio: ^5.8.0
-  file_picker: ^8.0.0
   flutter_lucide: ^1.8.2
   google_fonts: ^6.3.2
   image_picker: ^1.0.0
