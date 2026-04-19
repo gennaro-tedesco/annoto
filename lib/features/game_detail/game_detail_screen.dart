@@ -3,20 +3,25 @@ import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/services/pgn_validator.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart';
 
 class _MovePair {
   _MovePair({required this.number, String white = '', String black = ''})
     : white = TextEditingController(text: white),
-      black = TextEditingController(text: black);
+      black = TextEditingController(text: black),
+      whiteFocus = FocusNode(),
+      blackFocus = FocusNode();
 
   int number;
   final TextEditingController white;
   final TextEditingController black;
+  final FocusNode whiteFocus;
+  final FocusNode blackFocus;
 
   void dispose() {
     white.dispose();
     black.dispose();
+    whiteFocus.dispose();
+    blackFocus.dispose();
   }
 }
 
@@ -48,6 +53,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   bool _movesExpanded = true;
   late Scoresheet _scoresheet;
   String _initialPgn = '';
+  _MovePair? _editingMove;
 
   @override
   void didChangeDependencies() {
@@ -72,6 +78,16 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     super.dispose();
   }
 
+  void _attachFocusListeners(_MovePair move) {
+    void listener() {
+      if (!move.whiteFocus.hasFocus && !move.blackFocus.hasFocus) {
+        setState(() => _editingMove = null);
+      }
+    }
+    move.whiteFocus.addListener(listener);
+    move.blackFocus.addListener(listener);
+  }
+
   bool get _isDirty => _serialisePgn() != _initialPgn;
 
   void _parsePgn(String pgn) {
@@ -89,6 +105,9 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     final movesMatch = RegExp(r'\n\n(.+)', dotAll: true).firstMatch(pgn);
     final movesText = movesMatch?.group(1)?.trim() ?? pgn;
     _moves = _parseMoves(movesText);
+    for (final move in _moves) {
+      _attachFocusListeners(move);
+    }
   }
 
   List<_MovePair> _parseMoves(String text) {
@@ -147,6 +166,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   void _deleteMovePair(_MovePair move) {
     setState(() {
       _moves.remove(move);
+      if (_editingMove == move) _editingMove = null;
       move.dispose();
       _renumberMoves();
     });
@@ -156,9 +176,15 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   void _insertMovePairBelow(_MovePair move) {
     final index = _moves.indexOf(move);
     if (index == -1) return;
+    final newMove = _MovePair(number: move.number + 1);
+    _attachFocusListeners(newMove);
     setState(() {
-      _moves.insert(index + 1, _MovePair(number: move.number + 1));
+      _moves.insert(index + 1, newMove);
       _renumberMoves();
+      _editingMove = newMove;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      newMove.whiteFocus.requestFocus();
     });
     _runValidation();
   }
@@ -286,6 +312,10 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
 
   Widget _buildMoveRow(BuildContext context, _MovePair move, int index) {
     final theme = Theme.of(context);
+    final isEditing = _editingMove == move;
+    final hintStyle = TextStyle(
+      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+    );
     final whitePlyIndex = index * 2;
     final blackPlyIndex = index * 2 + 1;
     final whiteInvalid =
@@ -295,85 +325,132 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 36,
-            child: Text(
-              '${move.number}.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+      child: Dismissible(
+        key: ObjectKey(move),
+        direction: DismissDirection.horizontal,
+        background: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Icon(Icons.add, color: theme.colorScheme.onPrimary),
+        ),
+        secondaryBackground: Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.error,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Icon(Icons.delete, color: theme.colorScheme.onError),
+        ),
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.endToStart) {
+            _deleteMovePair(move);
+          } else {
+            _insertMovePairBelow(move);
+          }
+          return false;
+        },
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 36,
+              child: Text(
+                '${move.number}.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: TextField(
-              controller: move.white,
-              onChanged: (_) => _runValidation(),
-              style:
-                  whiteInvalid
-                      ? TextStyle(color: theme.colorScheme.error)
-                      : null,
-              decoration: InputDecoration(
-                hintText: 'White',
-                enabledBorder:
-                    whiteInvalid
-                        ? OutlineInputBorder(
-                          borderSide: BorderSide(color: theme.colorScheme.error),
-                        )
-                        : null,
-                focusedBorder:
-                    whiteInvalid
-                        ? OutlineInputBorder(
-                          borderSide: BorderSide(color: theme.colorScheme.error),
-                        )
-                        : null,
+            Expanded(
+              child: GestureDetector(
+                onLongPress: () {
+                  setState(() => _editingMove = move);
+                  move.whiteFocus.requestFocus();
+                },
+                child: AbsorbPointer(
+                  absorbing: !isEditing,
+                  child: TextField(
+                    focusNode: move.whiteFocus,
+                    readOnly: !isEditing,
+                    controller: move.white,
+                    onChanged: (_) => _runValidation(),
+                    style:
+                        whiteInvalid
+                            ? TextStyle(color: theme.colorScheme.error)
+                            : null,
+                    decoration: InputDecoration(
+                      hintText: 'White',
+                      hintStyle: hintStyle,
+                      enabledBorder:
+                          whiteInvalid
+                              ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                              : null,
+                      focusedBorder:
+                          whiteInvalid
+                              ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                              : null,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: move.black,
-              onChanged: (_) => _runValidation(),
-              style:
-                  blackInvalid
-                      ? TextStyle(color: theme.colorScheme.error)
-                      : null,
-              decoration: InputDecoration(
-                hintText: 'Black',
-                enabledBorder:
-                    blackInvalid
-                        ? OutlineInputBorder(
-                          borderSide: BorderSide(color: theme.colorScheme.error),
-                        )
-                        : null,
-                focusedBorder:
-                    blackInvalid
-                        ? OutlineInputBorder(
-                          borderSide: BorderSide(color: theme.colorScheme.error),
-                        )
-                        : null,
+            const SizedBox(width: 8),
+            Expanded(
+              child: GestureDetector(
+                onLongPress: () {
+                  setState(() => _editingMove = move);
+                  move.blackFocus.requestFocus();
+                },
+                child: AbsorbPointer(
+                  absorbing: !isEditing,
+                  child: TextField(
+                    focusNode: move.blackFocus,
+                    readOnly: !isEditing,
+                    controller: move.black,
+                    onChanged: (_) => _runValidation(),
+                    style:
+                        blackInvalid
+                            ? TextStyle(color: theme.colorScheme.error)
+                            : null,
+                    decoration: InputDecoration(
+                      hintText: 'Black',
+                      hintStyle: hintStyle,
+                      enabledBorder:
+                          blackInvalid
+                              ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                              : null,
+                      focusedBorder:
+                          blackInvalid
+                              ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                              : null,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GestureDetector(
-                onTap: () => _deleteMovePair(move),
-                child: Icon(LucideIcons.trash_2, size: 16, color: theme.colorScheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: () => _insertMovePairBelow(move),
-                child: Icon(Icons.add, size: 16, color: theme.colorScheme.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

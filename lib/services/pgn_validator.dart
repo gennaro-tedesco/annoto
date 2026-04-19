@@ -1,7 +1,7 @@
 import 'package:dartchess/dartchess.dart';
 
 List<bool> validateMoves(List<String> sans) {
-  var position = Chess.initial;
+  Position<Chess> position = Chess.initial;
   final validity = <bool>[];
   var foundInvalidMove = false;
 
