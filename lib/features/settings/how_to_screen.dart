@@ -10,6 +10,8 @@ class HowToScreen extends StatelessWidget {
         'Tap Home or Files to switch tabs.',
         'Tap the settings icon to open the settings panel.',
         'Tap the + button to choose how to add a scoresheet image.',
+        'Tap the filter button to unfold the Home filters upward from the bottom bar.',
+        'Use AND or OR to combine tournament, round, white player, and black player selections and narrow the game cards.',
       ],
     ),
     (

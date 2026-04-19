@@ -30,10 +30,22 @@ class _HomeScreenState extends State<HomeScreen> {
   static const _createButtonBottom = 72.0;
   static const _tabStripHeight = 56.0;
   static const _fabOverlayHeight = _createButtonBottom + _createButtonHeight;
+  static const _bottomOverlaySideInset = 16.0;
+  static const _bottomOverlayBottomInset = 16.0;
+  static const _filterButtonWidth = 84.0;
+  static const _filterButtonHeight = 56.0;
+  static const _filterPanelMaxWidth = 340.0;
+  static const _filterSpacing = 12.0;
+  static const _filterMenuHeight = 280.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   _Tab _tab = _Tab.home;
   List<Scoresheet> _scoresheets = [];
+  bool _filtersOpen = false;
+  String? _selectedTournament;
+  String? _selectedRound;
+  String? _selectedWhitePlayer;
+  String? _selectedBlackPlayer;
 
   @override
   void initState() {
@@ -44,7 +56,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadScoresheets() async {
     final scoresheets = await scoresheetRepository.getAll();
     if (!mounted) return;
-    setState(() => _scoresheets = scoresheets);
+    setState(() {
+      _scoresheets = scoresheets;
+      _clearMissingFilters(_buildFilterData());
+    });
   }
 
   void _selectTab(_Tab tab) {
@@ -185,82 +200,165 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: _tab == _Tab.home
-          ? _buildHomeTab2(context)
-          : _buildFilesEmptyState(context),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: SizedBox(
-        width: overlayWidth,
-        height: _fabOverlayHeight,
-        child: Stack(
-          alignment: Alignment.bottomCenter,
-          children: [
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: SizedBox(
-                width: overlayWidth,
-                height: _tabStripHeight,
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _buildHomeTab(
-                        context,
-                        icon: Icons.home_outlined,
-                        label: 'home',
-                        selected: _tab == _Tab.home,
-                        onTap: () => _selectTab(_Tab.home),
-                      ),
+      body: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: _tab == _Tab.home
+                ? _buildHomeTab2(context)
+                : _buildFilesEmptyState(context),
+          ),
+          if (_filtersOpen)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => setState(() => _filtersOpen = false),
+                behavior: HitTestBehavior.opaque,
+              ),
+            ),
+          Positioned(
+            left: _bottomOverlaySideInset,
+            bottom:
+                MediaQuery.of(context).padding.bottom +
+                _bottomOverlayBottomInset +
+                _fabOverlayHeight +
+                8,
+            child: ClipRect(
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                alignment: Alignment.bottomCenter,
+                child: SizedBox(
+                  width: overlayWidth
+                      .clamp(_filterButtonWidth, _filterPanelMaxWidth)
+                      .toDouble(),
+                  child: _tab == _Tab.home && _filtersOpen
+                      ? _buildFilterPanel(context, _buildFilterData())
+                      : const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: _bottomOverlaySideInset,
+            right: _bottomOverlaySideInset,
+            bottom:
+                MediaQuery.of(context).padding.bottom +
+                _bottomOverlayBottomInset,
+            height: _fabOverlayHeight,
+            child: _buildBottomOverlay(context, overlayWidth, fillColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomOverlay(
+    BuildContext context,
+    double overlayWidth,
+    Color fillColor,
+  ) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: overlayWidth,
+      height: _fabOverlayHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.bottomCenter,
+        children: [
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SizedBox(
+              width: overlayWidth,
+              height: _tabStripHeight,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildHomeTab(
+                      context,
+                      icon: Icons.home_outlined,
+                      label: 'home',
+                      selected: _tab == _Tab.home,
+                      onTap: () => _selectTab(_Tab.home),
                     ),
-                    Expanded(
-                      child: _buildHomeTab(
-                        context,
-                        icon: Icons.folder_outlined,
-                        label: 'files',
-                        selected: _tab == _Tab.files,
-                        onTap: () => _selectTab(_Tab.files),
+                  ),
+                  Expanded(
+                    child: _buildHomeTab(
+                      context,
+                      icon: Icons.folder_outlined,
+                      label: 'files',
+                      selected: _tab == _Tab.files,
+                      onTap: () => _selectTab(_Tab.files),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            bottom: _createButtonBottom,
+            child: SizedBox(
+              width: _filterButtonWidth,
+              height: _filterButtonHeight,
+              child: FloatingActionButton(
+                heroTag: 'filter_scoresheets',
+                onPressed: _tab == _Tab.home
+                    ? () {
+                        setState(() => _filtersOpen = !_filtersOpen);
+                      }
+                    : null,
+                backgroundColor: fillColor,
+                foregroundColor: theme.colorScheme.onSurface,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.filter_list_outlined,
+                      size: AppIconSize.inlineAction,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 0,
+            bottom: _createButtonBottom,
+            child: SizedBox(
+              width: _createButtonWidth,
+              height: _createButtonHeight,
+              child: FloatingActionButton(
+                heroTag: 'new_scoresheet',
+                onPressed: _openAddSheetMenu,
+                backgroundColor: fillColor,
+                foregroundColor: theme.colorScheme.onSurface,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.add, size: AppIconSize.inlineAction),
+                    const SizedBox(width: 4),
+                    SizedBox(
+                      width: 35,
+                      height: 35,
+                      child: OverflowBox(
+                        maxWidth: 88,
+                        maxHeight: 88,
+                        child: Icon(
+                          Icons.image_search_outlined,
+                          size: 28,
+                          color: theme.colorScheme.onSurface,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-            Positioned(
-              right: 0,
-              bottom: _createButtonBottom,
-              child: SizedBox(
-                width: _createButtonWidth,
-                height: _createButtonHeight,
-                child: FloatingActionButton(
-                  heroTag: 'new_scoresheet',
-                  onPressed: _openAddSheetMenu,
-                  backgroundColor: fillColor,
-                  foregroundColor: theme.colorScheme.onSurface,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.add, size: AppIconSize.inlineAction),
-                      const SizedBox(width: 4),
-                      SizedBox(
-                        width: 35,
-                        height: 35,
-                        child: OverflowBox(
-                          maxWidth: 88,
-                          maxHeight: 88,
-                          child: Icon(
-                            Icons.image_search_outlined,
-                            size: 28,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -291,43 +389,203 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text('Tap + to add one', style: theme.textTheme.bodySmall),
+                  const SizedBox(height: 160),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: _tabStripHeight),
         ],
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      itemCount: _scoresheets.length,
-      itemBuilder: (context, index) {
-        final scoresheet = _scoresheets[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Dismissible(
-            key: ValueKey(scoresheet.id),
-            direction: DismissDirection.endToStart,
-            background: const SizedBox.shrink(),
-            secondaryBackground: Container(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.error,
-                borderRadius: BorderRadius.circular(16),
+    final filterData = _buildFilterData();
+    final filteredScoresheets = _scoresheets
+        .where(
+          (scoresheet) => _matchesFilters(filterData.tagsById[scoresheet.id]!),
+        )
+        .toList();
+    return filteredScoresheets.isEmpty
+        ? Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.filter_alt_off_outlined,
+                    size: 64,
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: 0.35,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No matching games',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Adjust or clear filters to see more cards',
+                    style: theme.textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 160),
+                ],
               ),
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Icon(Icons.delete, color: theme.colorScheme.onError),
             ),
-            confirmDismiss: (_) async {
-              await scoresheetRepository.delete(scoresheet.id);
-              setState(() => _scoresheets.removeAt(index));
-              return false;
+          )
+        : ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+            itemCount: filteredScoresheets.length,
+            itemBuilder: (context, index) {
+              final scoresheet = filteredScoresheets[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Dismissible(
+                  key: ValueKey(scoresheet.id),
+                  direction: DismissDirection.endToStart,
+                  background: const SizedBox.shrink(),
+                  secondaryBackground: Container(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.error,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Icon(Icons.delete, color: theme.colorScheme.onError),
+                  ),
+                  confirmDismiss: (_) async {
+                    await scoresheetRepository.delete(scoresheet.id);
+                    setState(() {
+                      _scoresheets.removeWhere(
+                        (item) => item.id == scoresheet.id,
+                      );
+                      _clearMissingFilters(_buildFilterData());
+                    });
+                    return false;
+                  },
+                  child: _buildScoresheetCard(context, scoresheet),
+                ),
+              );
             },
-            child: _buildScoresheetCard(context, scoresheet),
-          ),
-        );
-      },
+          );
+  }
+
+  Widget _buildFilterPanel(BuildContext context, _FilterData filterData) {
+    final theme = Theme.of(context);
+    final fillColor =
+        theme.inputDecorationTheme.fillColor ??
+        theme.colorScheme.surfaceContainerHighest;
+    final hasActiveFilters =
+        _selectedTournament != null ||
+        _selectedRound != null ||
+        _selectedWhitePlayer != null ||
+        _selectedBlackPlayer != null;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Filters', style: theme.textTheme.bodyMedium),
+                const Spacer(),
+                TextButton(
+                  onPressed: hasActiveFilters ? _clearFilters : null,
+                  style: TextButton.styleFrom(
+                    textStyle: theme.textTheme.bodySmall,
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: const Text('Clear'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = 1;
+                final totalSpacing = _filterSpacing * (columns - 1);
+                final fieldWidth =
+                    (constraints.maxWidth - totalSpacing) / columns;
+                return Wrap(
+                  spacing: _filterSpacing,
+                  runSpacing: _filterSpacing,
+                  children: [
+                    _buildFilterDropdown(
+                      context,
+                      width: fieldWidth,
+                      fillColor: fillColor,
+                      label: 'Tournament',
+                      value: _selectedTournament,
+                      options: filterData.tournaments,
+                      onSelected: (value) {
+                        setState(() => _selectedTournament = value);
+                      },
+                    ),
+                    _buildFilterDropdown(
+                      context,
+                      width: fieldWidth,
+                      fillColor: fillColor,
+                      label: 'Round',
+                      value: _selectedRound,
+                      options: filterData.rounds,
+                      onSelected: (value) {
+                        setState(() => _selectedRound = value);
+                      },
+                    ),
+                    _buildFilterDropdown(
+                      context,
+                      width: fieldWidth,
+                      fillColor: fillColor,
+                      label: 'White',
+                      value: _selectedWhitePlayer,
+                      options: filterData.whitePlayers,
+                      onSelected: (value) {
+                        setState(() => _selectedWhitePlayer = value);
+                      },
+                    ),
+                    _buildFilterDropdown(
+                      context,
+                      width: fieldWidth,
+                      fillColor: fillColor,
+                      label: 'Black',
+                      value: _selectedBlackPlayer,
+                      options: filterData.blackPlayers,
+                      onSelected: (value) {
+                        setState(() => _selectedBlackPlayer = value);
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterDropdown(
+    BuildContext context, {
+    required double width,
+    required Color fillColor,
+    required String label,
+    required String? value,
+    required List<String> options,
+    required ValueChanged<String?> onSelected,
+  }) {
+    return _FilterDropdown(
+      label: label,
+      value: value,
+      options: options,
+      width: width,
+      fillColor: fillColor,
+      menuHeight: _filterMenuHeight,
+      onSelected: onSelected,
     );
   }
 
@@ -401,6 +659,73 @@ class _HomeScreenState extends State<HomeScreen> {
     return tags;
   }
 
+  _FilterData _buildFilterData() {
+    final tagsById = <String, Map<String, String>>{};
+    final tournaments = <String>{};
+    final rounds = <String>{};
+    final whitePlayers = <String>{};
+    final blackPlayers = <String>{};
+    for (final scoresheet in _scoresheets) {
+      final tags = _parsePgnTags(scoresheet.pgn);
+      tagsById[scoresheet.id] = tags;
+      _addFilterValue(tournaments, tags['Event']);
+      _addFilterValue(rounds, tags['Round']);
+      _addFilterValue(whitePlayers, tags['White']);
+      _addFilterValue(blackPlayers, tags['Black']);
+    }
+    return _FilterData(
+      tagsById: tagsById,
+      tournaments: tournaments.toList()..sort(),
+      rounds: rounds.toList()..sort(),
+      whitePlayers: whitePlayers.toList()..sort(),
+      blackPlayers: blackPlayers.toList()..sort(),
+    );
+  }
+
+  void _addFilterValue(Set<String> values, String? value) {
+    if (value == null || value.isEmpty) return;
+    values.add(value);
+  }
+
+  bool _matchesFilters(Map<String, String> tags) {
+    final checks = <bool>[];
+    _addFilterMatch(checks, tags['Event'], _selectedTournament);
+    _addFilterMatch(checks, tags['Round'], _selectedRound);
+    _addFilterMatch(checks, tags['White'], _selectedWhitePlayer);
+    _addFilterMatch(checks, tags['Black'], _selectedBlackPlayer);
+    if (checks.isEmpty) return true;
+    return checks.every((matches) => matches);
+  }
+
+  void _addFilterMatch(List<bool> checks, String? actual, String? selected) {
+    if (selected == null) return;
+    checks.add(actual == selected);
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _selectedTournament = null;
+      _selectedRound = null;
+      _selectedWhitePlayer = null;
+      _selectedBlackPlayer = null;
+    });
+  }
+
+  void _clearMissingFilters(_FilterData filterData) {
+    if (!filterData.tournaments.contains(_selectedTournament)) {
+      _selectedTournament = null;
+    }
+    if (!filterData.rounds.contains(_selectedRound)) {
+      _selectedRound = null;
+    }
+    if (!filterData.whitePlayers.contains(_selectedWhitePlayer)) {
+      _selectedWhitePlayer = null;
+    }
+    if (!filterData.blackPlayers.contains(_selectedBlackPlayer)) {
+      _selectedBlackPlayer = null;
+    }
+  }
+
   String? _joinNonEmpty(List<String?> parts, String separator) {
     final values = parts
         .whereType<String>()
@@ -438,11 +763,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   'Uploaded scoresheets will appear here',
                   style: theme.textTheme.bodySmall,
                 ),
+                const SizedBox(height: 160),
               ],
             ),
           ),
         ),
-        const SizedBox(height: _tabStripHeight),
       ],
     );
   }
@@ -497,6 +822,135 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilterData {
+  const _FilterData({
+    required this.tagsById,
+    required this.tournaments,
+    required this.rounds,
+    required this.whitePlayers,
+    required this.blackPlayers,
+  });
+
+  final Map<String, Map<String, String>> tagsById;
+  final List<String> tournaments;
+  final List<String> rounds;
+  final List<String> whitePlayers;
+  final List<String> blackPlayers;
+}
+
+class _FilterDropdown extends StatefulWidget {
+  const _FilterDropdown({
+    required this.label,
+    required this.value,
+    required this.options,
+    required this.width,
+    required this.fillColor,
+    required this.menuHeight,
+    required this.onSelected,
+  });
+
+  final String label;
+  final String? value;
+  final List<String> options;
+  final double width;
+  final Color fillColor;
+  final double menuHeight;
+  final ValueChanged<String?> onSelected;
+
+  @override
+  State<_FilterDropdown> createState() => _FilterDropdownState();
+}
+
+class _FilterDropdownState extends State<_FilterDropdown> {
+  final _controller = MenuController();
+  bool _isOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bodySmall = theme.textTheme.bodySmall;
+    final hasValue = widget.value != null;
+
+    return MenuAnchor(
+      controller: _controller,
+      alignmentOffset: Offset.zero,
+      onOpen: () => setState(() => _isOpen = true),
+      onClose: () => setState(() => _isOpen = false),
+      style: MenuStyle(
+        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+        minimumSize: WidgetStatePropertyAll(Size(widget.width, 0)),
+        maximumSize: WidgetStatePropertyAll(
+          Size(widget.width, widget.menuHeight),
+        ),
+      ),
+      menuChildren: [
+        if (hasValue)
+          MenuItemButton(
+            onPressed: () {
+              widget.onSelected(null);
+              _controller.close();
+            },
+            style: MenuItemButton.styleFrom(textStyle: bodySmall),
+            child: Text(
+              'Any',
+              style: bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ...widget.options.map(
+          (option) => MenuItemButton(
+            onPressed: () {
+              widget.onSelected(option);
+              _controller.close();
+            },
+            style: MenuItemButton.styleFrom(
+              textStyle: bodySmall,
+              backgroundColor: option == widget.value
+                  ? theme.colorScheme.primaryContainer
+                  : null,
+            ),
+            child: Text(option, style: bodySmall),
+          ),
+        ),
+      ],
+      builder: (context, controller, _) => GestureDetector(
+        onTap: () => _isOpen ? controller.close() : controller.open(),
+        child: Container(
+          width: widget.width,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: widget.fillColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: theme.colorScheme.outline.withOpacity(0.5),
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  hasValue ? widget.value! : widget.label,
+                  style: hasValue
+                      ? bodySmall
+                      : bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                ),
+              ),
+              Icon(
+                _isOpen ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
           ),
         ),
       ),
