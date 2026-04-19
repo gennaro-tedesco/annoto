@@ -40,6 +40,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
   final Map<String, TextEditingController> _headerControllers = {};
   List<_MovePair> _moves = [];
   bool _initialised = false;
+  bool _headersExpanded = true;
+  bool _movesExpanded = true;
 
   @override
   void didChangeDependencies() {
@@ -153,34 +155,63 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   vertical: 8,
                 ),
                 children: [
-                  ..._tagOrder.map(
-                    (tag) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 64,
-                            child: Text(
-                              tag,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
+                  _buildSectionToggle(
+                    context: context,
+                    title: 'Headers',
+                    expanded: _headersExpanded,
+                    onPressed: () {
+                      setState(() => _headersExpanded = !_headersExpanded);
+                    },
+                  ),
+                  if (_headersExpanded)
+                    ..._tagOrder.map(
+                      (tag) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 64,
+                              child: Text(
+                                tag,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
                               ),
                             ),
-                          ),
-                          Expanded(
-                            child: TextField(
-                              controller: _headerControllers[tag],
-                              decoration: InputDecoration(hintText: tag),
+                            Expanded(
+                              child: TextField(
+                                controller: _headerControllers[tag],
+                                decoration: InputDecoration(
+                                  hintText: tag,
+                                  isDense: true,
+                                  constraints: BoxConstraints(
+                                    minHeight: 44,
+                                    maxHeight: 44,
+                                  ),
+                                  contentPadding: EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   const SizedBox(height: 12),
                   Divider(color: theme.colorScheme.outlineVariant),
                   const SizedBox(height: 4),
-                  ..._moves.map((move) => _buildMoveRow(context, move)),
+                  _buildSectionToggle(
+                    context: context,
+                    title: 'Moves',
+                    expanded: _movesExpanded,
+                    onPressed: () {
+                      setState(() => _movesExpanded = !_movesExpanded);
+                    },
+                  ),
+                  if (_movesExpanded)
+                    ..._moves.map((move) => _buildMoveRow(context, move)),
                 ],
               ),
             ),
@@ -230,6 +261,38 @@ class _ReviewScreenState extends State<ReviewScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSectionToggle({
+    required BuildContext context,
+    required String title,
+    required bool expanded,
+    required VoidCallback onPressed,
+  }) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
+          foregroundColor: theme.colorScheme.onSurface,
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Align(
+              alignment: Alignment.center,
+              child: Text(title, style: theme.textTheme.titleMedium),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Icon(expanded ? Icons.expand_less : Icons.expand_more),
+            ),
+          ],
+        ),
       ),
     );
   }
