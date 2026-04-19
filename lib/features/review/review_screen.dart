@@ -1,5 +1,6 @@
 import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
+import 'package:annoto/services/pgn_validator.dart';
 import 'package:flutter/material.dart';
 
 class _MovePair {
@@ -39,6 +40,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
   final Map<String, TextEditingController> _headerControllers = {};
   List<_MovePair> _moves = [];
+  List<bool> _plyValidity = [];
   bool _initialised = false;
   bool _headersExpanded = true;
   bool _movesExpanded = true;
@@ -49,6 +51,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     if (!_initialised) {
       final pgn = ModalRoute.of(context)!.settings.arguments as String? ?? '';
       _parsePgn(pgn);
+      _runValidation();
       _initialised = true;
     }
   }
@@ -112,7 +115,24 @@ class _ReviewScreenState extends State<ReviewScreen> {
     return buffer.toString().trim();
   }
 
+  void _runValidation() {
+    final sans = <String>[];
+    for (final move in _moves) {
+      sans.add(move.white.text.trim());
+      sans.add(move.black.text.trim());
+    }
+    while (sans.isNotEmpty && sans.last.isEmpty) {
+      sans.removeLast();
+    }
+
+    final plyValidity = validateMoves(sans);
+    setState(() {
+      _plyValidity = plyValidity;
+    });
+  }
+
   Future<void> _confirm() async {
+    _runValidation();
     final pgn = _serialisePgn();
     try {
       await scoresheetRepository.save(pgn);
@@ -210,7 +230,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     },
                   ),
                   if (_movesExpanded)
-                    ..._moves.map((move) => _buildMoveRow(context, move)),
+                    ..._moves.asMap().entries.map(
+                      (entry) => _buildMoveRow(context, entry.value, entry.key),
+                    ),
                 ],
               ),
             ),
@@ -230,8 +252,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
     );
   }
 
-  Widget _buildMoveRow(BuildContext context, _MovePair move) {
+  Widget _buildMoveRow(BuildContext context, _MovePair move, int index) {
     final theme = Theme.of(context);
+    final whitePlyIndex = index * 2;
+    final blackPlyIndex = index * 2 + 1;
+    final whiteInvalid =
+        whitePlyIndex < _plyValidity.length && !_plyValidity[whitePlyIndex];
+    final blackInvalid =
+        blackPlyIndex < _plyValidity.length && !_plyValidity[blackPlyIndex];
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -249,14 +278,50 @@ class _ReviewScreenState extends State<ReviewScreen> {
           Expanded(
             child: TextField(
               controller: move.white,
-              decoration: const InputDecoration(hintText: 'White'),
+              style:
+                  whiteInvalid
+                      ? TextStyle(color: theme.colorScheme.error)
+                      : null,
+              decoration: InputDecoration(
+                hintText: 'White',
+                enabledBorder:
+                    whiteInvalid
+                        ? OutlineInputBorder(
+                          borderSide: BorderSide(color: theme.colorScheme.error),
+                        )
+                        : null,
+                focusedBorder:
+                    whiteInvalid
+                        ? OutlineInputBorder(
+                          borderSide: BorderSide(color: theme.colorScheme.error),
+                        )
+                        : null,
+              ),
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: move.black,
-              decoration: const InputDecoration(hintText: 'Black'),
+              style:
+                  blackInvalid
+                      ? TextStyle(color: theme.colorScheme.error)
+                      : null,
+              decoration: InputDecoration(
+                hintText: 'Black',
+                enabledBorder:
+                    blackInvalid
+                        ? OutlineInputBorder(
+                          borderSide: BorderSide(color: theme.colorScheme.error),
+                        )
+                        : null,
+                focusedBorder:
+                    blackInvalid
+                        ? OutlineInputBorder(
+                          borderSide: BorderSide(color: theme.colorScheme.error),
+                        )
+                        : null,
+              ),
             ),
           ),
         ],
