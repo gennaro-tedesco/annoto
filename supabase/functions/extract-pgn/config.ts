@@ -1,8 +1,12 @@
 import { GoogleProvider, GroqProvider, MistralProvider, PgnProvider } from './providers.ts'
 
+const GOOGLE_MODEL_DEFAULT = 'gemini-3.1-flash-lite-preview'
+const MISTRAL_MODEL_DEFAULT = 'mistral-large-latest'
+const GROQ_MODEL_DEFAULT = 'meta-llama/llama-4-scout-17b-16e-instruct'
+
 const googleProvider: PgnProvider = new GoogleProvider({
   apiKey: Deno.env.get('GEMINI_API_KEY')!,
-  model: Deno.env.get('GOOGLE_MODEL') ?? 'gemini-3.1-flash-lite-preview',
+  model: Deno.env.get('GOOGLE_MODEL') ?? GOOGLE_MODEL_DEFAULT,
 })
 
 const mistralProvider: PgnProvider = new MistralProvider({
@@ -10,12 +14,12 @@ const mistralProvider: PgnProvider = new MistralProvider({
   extractionModel:
     Deno.env.get('MISTRAL_EXTRACTION_MODEL') ??
     Deno.env.get('MISTRAL_MODEL') ??
-    'mistral-large-latest',
+    MISTRAL_MODEL_DEFAULT,
 })
 
 const groqProvider: PgnProvider = new GroqProvider({
   apiKey: Deno.env.get('GROQ_API_KEY')!,
-  model: Deno.env.get('GROQ_MODEL') ?? 'meta-llama/llama-4-scout-17b-16e-instruct',
+  model: Deno.env.get('GROQ_MODEL') ?? GROQ_MODEL_DEFAULT,
 })
 
 export function getProvider(providerName?: string): PgnProvider {

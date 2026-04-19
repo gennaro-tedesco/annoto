@@ -1,15 +1,6 @@
 import 'package:annoto/app/app_state.dart';
+import 'package:annoto/app/ai_models.dart';
 import 'package:flutter/material.dart';
-
-const _providerModels = {
-  AiProvider.gemini: ['gemini-2.0-flash-lite'],
-  AiProvider.mistral: ['voxtral-mini-2507', 'mistral-large-latest'],
-  AiProvider.groq: [
-    'whisper-large-v3',
-    'llama-3.3-70b-versatile',
-    'llama-4-scout-17b-16e-instruct',
-  ],
-};
 
 class ProviderScreen extends StatelessWidget {
   const ProviderScreen({super.key});
@@ -83,19 +74,21 @@ class ProviderScreen extends StatelessWidget {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: (_providerModels[appState.selectedProvider] ?? [])
-                        .map(
-                          (model) => Chip(
-                            label: Text(
-                              model,
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            padding: EdgeInsets.zero,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ),
-                        )
-                        .toList(),
+                    children:
+                        (providerModels[appState.selectedProvider] ??
+                                const <String>[])
+                            .map(
+                              (model) => Chip(
+                                label: Text(
+                                  model,
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                                padding: EdgeInsets.zero,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            )
+                            .toList(),
                   ),
                 ],
               ),

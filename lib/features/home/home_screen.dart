@@ -348,6 +348,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildScoresheetCard(BuildContext context, Scoresheet scoresheet) {
     final theme = Theme.of(context);
+    final tags = _parsePgnTags(scoresheet.pgn);
+    final players = _joinNonEmpty([
+      _joinNonEmpty([tags['White'], tags['Black']], ' - '),
+      tags['Result'],
+    ], '\t\t\t');
+    final eventRound = _joinNonEmpty([
+      tags['Event'],
+      tags['Round'],
+    ], ' - Game ');
     return Card(
       margin: EdgeInsets.zero,
       child: InkWell(
@@ -362,19 +371,16 @@ class _HomeScreenState extends State<HomeScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(scoresheet.filename, style: theme.textTheme.bodyMedium),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatDate(scoresheet.createdAt),
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  if (players != null)
+                    Text(players, style: theme.textTheme.bodyMedium),
+                  if (players != null && eventRound != null)
+                    const SizedBox(height: 4),
+                  if (eventRound != null)
+                    Text(eventRound, style: theme.textTheme.bodySmall),
                 ],
               ),
               const Spacer(),
-              Icon(
-                Icons.chevron_right,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              const SizedBox(width: 24),
             ],
           ),
         ),
@@ -394,22 +400,24 @@ class _HomeScreenState extends State<HomeScreen> {
     _ => 'Extraction failed. Try again.',
   };
 
-  String _formatDate(DateTime dt) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  Map<String, String> _parsePgnTags(String pgn) {
+    final tags = <String, String>{};
+    final exp = RegExp(r'^\[(\w+)\s+"(.*)"\]$', multiLine: true);
+    for (final match in exp.allMatches(pgn)) {
+      final value = match.group(2)?.trim();
+      if (value == null || value.isEmpty || value == '?') continue;
+      tags[match.group(1)!] = value;
+    }
+    return tags;
+  }
+
+  String? _joinNonEmpty(List<String?> parts, String separator) {
+    final values = parts
+        .whereType<String>()
+        .where((value) => value.isNotEmpty)
+        .toList();
+    if (values.isEmpty) return null;
+    return values.join(separator);
   }
 
   Widget _buildFilesEmptyState(BuildContext context) {
