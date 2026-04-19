@@ -1,6 +1,7 @@
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
+import 'package:annoto/services/pgn_validator.dart';
 import 'package:flutter/material.dart';
 
 class _MovePair {
@@ -46,6 +47,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
 
   final Map<String, TextEditingController> _headerControllers = {};
   List<_MovePair> _moves = [];
+  List<bool> _plyValidity = [];
   bool _initialised = false;
   bool _headersExpanded = true;
   bool _movesExpanded = true;
@@ -59,6 +61,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     if (!_initialised) {
       _scoresheet = ModalRoute.of(context)!.settings.arguments as Scoresheet;
       _parsePgn(_scoresheet.pgn);
+      _runValidation();
       _initialPgn = _serialisePgn();
       _initialised = true;
     }
@@ -144,6 +147,22 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     }
   }
 
+  void _runValidation() {
+    final sans = <String>[];
+    for (final move in _moves) {
+      sans.add(move.white.text.trim());
+      sans.add(move.black.text.trim());
+    }
+    while (sans.isNotEmpty && sans.last.isEmpty) {
+      sans.removeLast();
+    }
+
+    final plyValidity = validateMoves(sans);
+    setState(() {
+      _plyValidity = plyValidity;
+    });
+  }
+
   void _deleteMovePair(_MovePair move) {
     setState(() {
       _moves.remove(move);
@@ -151,6 +170,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       move.dispose();
       _renumberMoves();
     });
+    _runValidation();
   }
 
   void _insertMovePairBelow(_MovePair move) {
@@ -166,10 +186,12 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       newMove.whiteFocus.requestFocus();
     });
+    _runValidation();
   }
 
   Future<void> _save() async {
     if (!_isDirty) return;
+    _runValidation();
     final pgn = _serialisePgn();
     try {
       await scoresheetRepository.update(_scoresheet.id, pgn);
@@ -256,7 +278,9 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     },
                   ),
                   if (_movesExpanded)
-                    ..._moves.map((move) => _buildMoveRow(context, move)),
+                    ..._moves.asMap().entries.map(
+                      (entry) => _buildMoveRow(context, entry.value, entry.key),
+                    ),
                 ],
               ),
             ),
@@ -286,12 +310,18 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  Widget _buildMoveRow(BuildContext context, _MovePair move) {
+  Widget _buildMoveRow(BuildContext context, _MovePair move, int index) {
     final theme = Theme.of(context);
     final isEditing = _editingMove == move;
     final hintStyle = TextStyle(
       color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
     );
+    final whitePlyIndex = index * 2;
+    final blackPlyIndex = index * 2 + 1;
+    final whiteInvalid =
+        whitePlyIndex < _plyValidity.length && !_plyValidity[whitePlyIndex];
+    final blackInvalid =
+        blackPlyIndex < _plyValidity.length && !_plyValidity[blackPlyIndex];
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -348,10 +378,30 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     focusNode: move.whiteFocus,
                     readOnly: !isEditing,
                     controller: move.white,
-                    onChanged: (_) => setState(() {}),
+                    onChanged: (_) => _runValidation(),
+                    style:
+                        whiteInvalid
+                            ? TextStyle(color: theme.colorScheme.error)
+                            : null,
                     decoration: InputDecoration(
                       hintText: 'White',
                       hintStyle: hintStyle,
+                      enabledBorder:
+                          whiteInvalid
+                              ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                              : null,
+                      focusedBorder:
+                          whiteInvalid
+                              ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                              : null,
                     ),
                   ),
                 ),
@@ -370,10 +420,30 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     focusNode: move.blackFocus,
                     readOnly: !isEditing,
                     controller: move.black,
-                    onChanged: (_) => setState(() {}),
+                    onChanged: (_) => _runValidation(),
+                    style:
+                        blackInvalid
+                            ? TextStyle(color: theme.colorScheme.error)
+                            : null,
                     decoration: InputDecoration(
                       hintText: 'Black',
                       hintStyle: hintStyle,
+                      enabledBorder:
+                          blackInvalid
+                              ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                              : null,
+                      focusedBorder:
+                          blackInvalid
+                              ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                              : null,
                     ),
                   ),
                 ),
