@@ -152,18 +152,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
         theme.colorScheme.surfaceContainerHighest;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton.filled(
-          onPressed: () => Navigator.pop(context),
-          style: IconButton.styleFrom(
-            backgroundColor: fillColor,
-            foregroundColor: theme.colorScheme.onSurface,
-          ),
-          tooltip: 'Back',
-          icon: const Icon(Icons.chevron_left, size: 22),
-        ),
-        title: const Text('Review'),
-      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -203,11 +191,11 @@ class _ReviewScreenState extends State<ReviewScreen> {
                                 decoration: InputDecoration(
                                   hintText: tag,
                                   isDense: true,
-                                  constraints: BoxConstraints(
+                                  constraints: const BoxConstraints(
                                     minHeight: 44,
                                     maxHeight: 44,
                                   ),
-                                  contentPadding: EdgeInsets.symmetric(
+                                  contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 16,
                                     vertical: 8,
                                   ),
@@ -238,12 +226,22 @@ class _ReviewScreenState extends State<ReviewScreen> {
             ),
             Padding(
               padding: const EdgeInsets.all(16),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => _confirm(),
-                  child: const Text('Confirm'),
-                ),
+              child: Row(
+                children: [
+                  IconButton.filled(
+                    onPressed: () => Navigator.pop(context),
+                    style: IconButton.styleFrom(
+                      backgroundColor: fillColor,
+                      foregroundColor: theme.colorScheme.onSurface,
+                    ),
+                    icon: const Icon(Icons.chevron_left, size: 22),
+                  ),
+                  const Spacer(),
+                  IconButton.filled(
+                    onPressed: _confirm,
+                    icon: const Icon(Icons.check, size: 20),
+                  ),
+                ],
               ),
             ),
           ],
