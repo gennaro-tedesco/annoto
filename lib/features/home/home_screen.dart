@@ -10,6 +10,7 @@ import 'package:annoto/features/settings/settings_screen.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
+import 'package:annoto/services/pgn_validator.dart';
 import 'package:annoto/widgets/gradient_text.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -31,15 +32,24 @@ class _HomeScreenState extends State<HomeScreen>
   static const _createButtonWidth = 84.0;
   static const _createButtonHeight = 56.0;
   static const _createButtonBottom = 72.0;
-  static const _tabStripHeight = 56.0;
+  static const _tabStripHeight = 10.0;
   static const _fabOverlayHeight = _createButtonBottom + _createButtonHeight;
   static const _bottomOverlaySideInset = 16.0;
   static const _bottomOverlayBottomInset = 16.0;
+  static const _contentBottomClearance =
+      _bottomOverlayBottomInset + _fabOverlayHeight;
   static const _filterButtonWidth = 84.0;
   static const _filterButtonHeight = 56.0;
   static const _filterPanelMaxWidth = 340.0;
   static const _filterSpacing = 12.0;
   static const _filterMenuHeight = 280.0;
+  static const _listSideInset = 16.0;
+  static const _listTopInset = 12.0;
+  static const _listItemSpacing = 8.0;
+  static const _cardInternalPadding = 16.0;
+  static const _swipeRevealPadding = 20.0;
+  static const _invalidIndicatorSize = 10.0;
+  static const _invalidIndicatorInset = 8.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   _Tab _tab = _Tab.home;
@@ -145,7 +155,12 @@ class _HomeScreenState extends State<HomeScreen>
       final model = providerModels[selectedProvider]!.first;
       final response = await Supabase.instance.client.functions.invoke(
         'extract-pgn',
-        body: {'image': b64, 'mimeType': mimeType, 'provider': provider, 'model': model},
+        body: {
+          'image': b64,
+          'mimeType': mimeType,
+          'provider': provider,
+          'model': model,
+        },
       );
       final data = response.data as Map<String, dynamic>;
       if (data['error'] != null) {
@@ -219,10 +234,20 @@ class _HomeScreenState extends State<HomeScreen>
       body: Stack(
         clipBehavior: Clip.none,
         children: [
-          Positioned.fill(
-            child: _tab == _Tab.home
-                ? _buildHomeTab2(context)
-                : _buildFilesEmptyState(context),
+          Column(
+            children: [
+              Expanded(
+                child: _tab == _Tab.home
+                    ? _buildHomeTab2(context)
+                    : _buildFilesEmptyState(context),
+              ),
+              SizedBox(
+                height:
+                    MediaQuery.of(context).padding.bottom +
+                    _contentBottomClearance +
+                    _tabStripHeight,
+              ),
+            ],
           ),
           if (_filtersOpen)
             Positioned.fill(
@@ -329,7 +354,9 @@ class _HomeScreenState extends State<HomeScreen>
                 icon: Icon(
                   Icons.filter_list_outlined,
                   size: AppIconSize.inlineAction,
-                  color: theme.colorScheme.onSurface,
+                  color: _hasActiveFilters
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface,
                 ),
               ),
             ),
@@ -400,7 +427,6 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   const SizedBox(height: 4),
                   Text('Tap + to add one', style: theme.textTheme.bodySmall),
-                  const SizedBox(height: 160),
                 ],
               ),
             ),
@@ -441,18 +467,22 @@ class _HomeScreenState extends State<HomeScreen>
                     style: theme.textTheme.bodySmall,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 160),
                 ],
               ),
             ),
           )
         : ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+            padding: const EdgeInsets.fromLTRB(
+              _listSideInset,
+              _listTopInset,
+              _listSideInset,
+              _listItemSpacing,
+            ),
             itemCount: filteredScoresheets.length,
             itemBuilder: (context, index) {
               final scoresheet = filteredScoresheets[index];
               return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: _listItemSpacing),
                 child: Dismissible(
                   key: ValueKey(scoresheet.id),
                   direction: DismissDirection.horizontal,
@@ -462,8 +492,13 @@ class _HomeScreenState extends State<HomeScreen>
                       borderRadius: BorderRadius.circular(16),
                     ),
                     alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Icon(Icons.share, color: theme.colorScheme.onPrimary),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _swipeRevealPadding,
+                    ),
+                    child: Icon(
+                      Icons.share,
+                      color: theme.colorScheme.onPrimary,
+                    ),
                   ),
                   secondaryBackground: Container(
                     decoration: BoxDecoration(
@@ -471,15 +506,19 @@ class _HomeScreenState extends State<HomeScreen>
                       borderRadius: BorderRadius.circular(16),
                     ),
                     alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _swipeRevealPadding,
+                    ),
                     child: Icon(Icons.delete, color: theme.colorScheme.onError),
                   ),
                   confirmDismiss: (direction) async {
                     if (direction == DismissDirection.startToEnd) {
-                      final path = await scoresheetRepository.getFilePath(scoresheet.id);
-                      await Share.shareXFiles(
-                        [XFile(path, mimeType: 'application/x-chess-pgn')],
+                      final path = await scoresheetRepository.getFilePath(
+                        scoresheet.id,
                       );
+                      await Share.shareXFiles([
+                        XFile(path, mimeType: 'application/x-chess-pgn'),
+                      ]);
                     } else {
                       await scoresheetRepository.delete(scoresheet.id);
                       setState(() {
@@ -503,11 +542,6 @@ class _HomeScreenState extends State<HomeScreen>
     final fillColor =
         theme.inputDecorationTheme.fillColor ??
         theme.colorScheme.surfaceContainerHighest;
-    final hasActiveFilters =
-        _selectedTournament != null ||
-        _selectedRound != null ||
-        _selectedWhitePlayer != null ||
-        _selectedBlackPlayer != null;
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -520,7 +554,7 @@ class _HomeScreenState extends State<HomeScreen>
                 Text('Filters', style: theme.textTheme.bodyMedium),
                 const Spacer(),
                 TextButton(
-                  onPressed: hasActiveFilters ? _clearFilters : null,
+                  onPressed: _hasActiveFilters ? _clearFilters : null,
                   style: TextButton.styleFrom(
                     textStyle: theme.textTheme.bodySmall,
                     visualDensity: VisualDensity.compact,
@@ -626,39 +660,58 @@ class _HomeScreenState extends State<HomeScreen>
       tags['Event'],
       tags['Round'],
     ], ' - Game ');
-    return Card(
-      margin: EdgeInsets.zero,
-      child: InkWell(
-        onTap: () async {
-          final updated = await Navigator.of(
-            context,
-          ).pushNamed(GameDetailScreen.routeName, arguments: scoresheet);
-          if (updated == true && mounted) {
-            await _loadScoresheets();
-          }
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (players != null)
-                      Text(players, style: theme.textTheme.bodyMedium),
-                    if (players != null && eventRound != null)
-                      const SizedBox(height: 4),
-                    if (eventRound != null)
-                      Text(eventRound, style: theme.textTheme.bodySmall),
-                  ],
-                ),
+    final invalid = _hasInvalidMoves(scoresheet.pgn);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Card(
+          margin: EdgeInsets.zero,
+          child: InkWell(
+            onTap: () async {
+              final updated = await Navigator.of(
+                context,
+              ).pushNamed(GameDetailScreen.routeName, arguments: scoresheet);
+              if (updated == true && mounted) {
+                await _loadScoresheets();
+              }
+            },
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(_cardInternalPadding),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (players != null)
+                          Text(players, style: theme.textTheme.bodyMedium),
+                        if (players != null && eventRound != null)
+                          const SizedBox(height: 4),
+                        if (eventRound != null)
+                          Text(eventRound, style: theme.textTheme.bodySmall),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
-      ),
+        if (invalid)
+          Positioned(
+            top: _invalidIndicatorInset,
+            right: _invalidIndicatorInset,
+            child: Container(
+              width: _invalidIndicatorSize,
+              height: _invalidIndicatorSize,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.error,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -667,13 +720,31 @@ class _HomeScreenState extends State<HomeScreen>
       'AI provider quota exceeded. Try again later or switch provider.',
     'provider_unavailable' =>
       'AI provider is currently unavailable. Try again later.',
-    'unknown_provider' => 'Unknown AI provider selected. Please check your settings.',
+    'unknown_provider' =>
+      'Unknown AI provider selected. Please check your settings.',
     'model_not_found' => 'The selected AI model is unavailable.',
     'empty_model_output' => 'The AI returned no content. Try a clearer image.',
     'unauthorized' => 'Authentication required. Please sign in.',
     'payload_too_large' => 'Image is too large. Please use a smaller file.',
     _ => 'Extraction failed. Try again.',
   };
+
+  bool _hasInvalidMoves(String pgn) {
+    final movesMatch = RegExp(r'\n\n(.+)', dotAll: true).firstMatch(pgn);
+    final movesText = movesMatch?.group(1)?.trim() ?? '';
+    if (movesText.isEmpty) return false;
+    final sans = <String>[];
+    for (final m in RegExp(
+      r'(\d+)\.\s*(\S+)(?:\s+(\S+))?',
+    ).allMatches(movesText)) {
+      sans.add(m.group(2) ?? '');
+      final black = m.group(3);
+      if (black != null) sans.add(black);
+    }
+    while (sans.isNotEmpty && sans.last.isEmpty) sans.removeLast();
+    if (sans.isEmpty) return false;
+    return validateMoves(sans).any((v) => !v);
+  }
 
   Map<String, String> _parsePgnTags(String pgn) {
     final tags = <String, String>{};
@@ -738,6 +809,12 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  bool get _hasActiveFilters =>
+      _selectedTournament != null ||
+      _selectedRound != null ||
+      _selectedWhitePlayer != null ||
+      _selectedBlackPlayer != null;
+
   void _clearMissingFilters(_FilterData filterData) {
     if (!filterData.tournaments.contains(_selectedTournament)) {
       _selectedTournament = null;
@@ -790,7 +867,6 @@ class _HomeScreenState extends State<HomeScreen>
                   'Uploaded scoresheets will appear here',
                   style: theme.textTheme.bodySmall,
                 ),
-                const SizedBox(height: 160),
               ],
             ),
           ),

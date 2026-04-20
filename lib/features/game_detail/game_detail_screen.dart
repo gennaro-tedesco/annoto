@@ -310,6 +310,9 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     style: IconButton.styleFrom(
                       backgroundColor: fillColor,
                       foregroundColor: theme.colorScheme.onSurface,
+                      side: _plyValidity.any((v) => !v)
+                          ? BorderSide(color: theme.colorScheme.error)
+                          : null,
                     ),
                     icon: const Icon(Icons.share, size: 20),
                   ),
