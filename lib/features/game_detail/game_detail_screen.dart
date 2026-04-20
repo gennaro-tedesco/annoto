@@ -368,7 +368,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
             ),
             Expanded(
               child: GestureDetector(
-                onLongPress: () {
+                onTap: () {
                   setState(() => _editingMove = move);
                   move.whiteFocus.requestFocus();
                 },
@@ -410,7 +410,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: GestureDetector(
-                onLongPress: () {
+                onTap: () {
                   setState(() => _editingMove = move);
                   move.blackFocus.requestFocus();
                 },

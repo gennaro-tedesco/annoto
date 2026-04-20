@@ -24,7 +24,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   static const _createButtonWidth = 84.0;
   static const _createButtonHeight = 56.0;
   static const _createButtonBottom = 72.0;
@@ -42,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
   _Tab _tab = _Tab.home;
   List<Scoresheet> _scoresheets = [];
   bool _filtersOpen = false;
+  late final AnimationController _filterSpinController;
   String? _selectedTournament;
   String? _selectedRound;
   String? _selectedWhitePlayer;
@@ -50,7 +52,17 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _filterSpinController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
     _loadScoresheets();
+  }
+
+  @override
+  void dispose() {
+    _filterSpinController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadScoresheets() async {
@@ -297,28 +309,23 @@ class _HomeScreenState extends State<HomeScreen> {
           Positioned(
             left: 0,
             bottom: _createButtonBottom,
-            child: SizedBox(
-              width: _filterButtonWidth,
-              height: _filterButtonHeight,
-              child: FloatingActionButton(
-                heroTag: 'filter_scoresheets',
+            child: RotationTransition(
+              turns: _filterSpinController,
+              child: IconButton(
                 onPressed: _tab == _Tab.home
                     ? () {
+                        if (_filtersOpen) {
+                          _filterSpinController.reverse(from: 1.0);
+                        } else {
+                          _filterSpinController.forward(from: 0.0);
+                        }
                         setState(() => _filtersOpen = !_filtersOpen);
                       }
                     : null,
-                backgroundColor: fillColor,
-                foregroundColor: theme.colorScheme.onSurface,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.filter_list_outlined,
-                      size: AppIconSize.inlineAction,
-                    ),
-                    const SizedBox(width: 4),
-                  ],
+                icon: Icon(
+                  Icons.filter_list_outlined,
+                  size: AppIconSize.inlineAction,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
             ),
