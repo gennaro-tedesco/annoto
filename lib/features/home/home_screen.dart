@@ -215,17 +215,8 @@ class _HomeScreenState extends State<HomeScreen>
         child: const Drawer(child: SettingsScreen()),
       ),
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset('images/logo.png', height: 38),
-            const SizedBox(width: 8),
-            GradientText(
-              'annoto',
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-            ),
-          ],
-        ),
+        centerTitle: true,
+        title: Image.asset('images/logo.png', height: 38),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
