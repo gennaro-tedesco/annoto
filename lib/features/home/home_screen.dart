@@ -4,6 +4,7 @@ import 'package:annoto/app/ai_models.dart';
 import 'package:annoto/app/app_state.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:annoto/app/ui_sizes.dart';
+import 'package:annoto/features/board/board_screen.dart';
 import 'package:annoto/features/game_detail/game_detail_screen.dart';
 import 'package:annoto/features/review/review_screen.dart';
 import 'package:annoto/features/settings/settings_screen.dart';
@@ -618,7 +619,15 @@ class _HomeScreenState extends State<HomeScreen>
         Card(
           margin: EdgeInsets.zero,
           child: InkWell(
-            onTap: () async {
+            onTap: () {
+              if (!invalid) {
+                Navigator.of(context).pushNamed(
+                  BoardScreen.routeName,
+                  arguments: scoresheet,
+                );
+              }
+            },
+            onLongPress: () async {
               final updated = await Navigator.of(
                 context,
               ).pushNamed(GameDetailScreen.routeName, arguments: scoresheet);

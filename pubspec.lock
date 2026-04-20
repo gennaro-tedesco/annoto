@@ -81,6 +81,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.4"
+  chessground:
+    dependency: "direct main"
+    description:
+      name: chessground
+      sha256: e2545b2475259c5665e7c6162affa6dbcb7dd3eb3050f603162833fbb7a8a260
+      url: "https://pub.dev"
+    source: hosted
+    version: "9.0.0"
   cli_util:
     dependency: transitive
     description:
@@ -157,10 +165,10 @@ packages:
     dependency: "direct main"
     description:
       name: dartchess
-      sha256: "6ddc173288cb63444edf0d766986c283bb1ae6d8ede2ac1fc9de857f0f84d051"
+      sha256: "489095ecd3d03466ffd9e3d9680ff115919432d7a069a93932222edc8756d6e8"
       url: "https://pub.dev"
     source: hosted
-    version: "0.9.2"
+    version: "0.12.3"
   dio:
     dependency: "direct main"
     description:
@@ -189,10 +197,10 @@ packages:
     dependency: transitive
     description:
       name: fast_immutable_collections
-      sha256: c3c73f4f989d3302066e4ec94e6ec73b5dc872592d02194f49f1352d64126b8c
+      sha256: "58cec99fc068427c71901e82d4b31b232240ebe6e61200993c2cb91bcada0ff6"
       url: "https://pub.dev"
     source: hosted
-    version: "10.2.4"
+    version: "11.2.0"
   ffi:
     dependency: transitive
     description:

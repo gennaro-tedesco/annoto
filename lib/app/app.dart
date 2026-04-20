@@ -1,5 +1,6 @@
 import 'package:annoto/app/themes.dart';
 import 'package:annoto/features/account/account_screen.dart';
+import 'package:annoto/features/board/board_screen.dart';
 import 'package:annoto/features/game_detail/game_detail_screen.dart';
 import 'package:annoto/features/home/home_screen.dart';
 import 'package:annoto/features/processing/processing_screen.dart';
@@ -60,6 +61,7 @@ class _AnnotoAppState extends State<AnnotoApp> {
               ProcessingScreen.routeName: (_) => const ProcessingScreen(),
               ReviewScreen.routeName: (_) => const ReviewScreen(),
               GameDetailScreen.routeName: (_) => const GameDetailScreen(),
+              BoardScreen.routeName: (_) => const BoardScreen(),
             },
             initialRoute: HomeScreen.routeName,
           );
