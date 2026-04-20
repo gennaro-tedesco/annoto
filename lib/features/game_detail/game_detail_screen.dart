@@ -3,6 +3,7 @@ import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/services/pgn_validator.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 class _MovePair {
   _MovePair({required this.number, String white = '', String black = ''})
@@ -189,6 +190,13 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     _runValidation();
   }
 
+  Future<void> _share() async {
+    final path = await scoresheetRepository.getFilePath(_scoresheet.id);
+    await Share.shareXFiles(
+      [XFile(path, mimeType: 'application/x-chess-pgn')],
+    );
+  }
+
   Future<void> _save() async {
     if (!_isDirty) return;
     _runValidation();
@@ -295,6 +303,15 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                       foregroundColor: theme.colorScheme.onSurface,
                     ),
                     icon: const Icon(Icons.chevron_left, size: 22),
+                  ),
+                  const Spacer(),
+                  IconButton.filled(
+                    onPressed: _share,
+                    style: IconButton.styleFrom(
+                      backgroundColor: fillColor,
+                      foregroundColor: theme.colorScheme.onSurface,
+                    ),
+                    icon: const Icon(Icons.share, size: 20),
                   ),
                   const Spacer(),
                   IconButton.filled(

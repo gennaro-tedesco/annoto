@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:annoto/app/ai_models.dart';
 import 'package:annoto/app/app_state.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/features/game_detail/game_detail_screen.dart';
 import 'package:annoto/features/review/review_screen.dart';
@@ -454,8 +455,16 @@ class _HomeScreenState extends State<HomeScreen>
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Dismissible(
                   key: ValueKey(scoresheet.id),
-                  direction: DismissDirection.endToStart,
-                  background: const SizedBox.shrink(),
+                  direction: DismissDirection.horizontal,
+                  background: Container(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Icon(Icons.share, color: theme.colorScheme.onPrimary),
+                  ),
                   secondaryBackground: Container(
                     decoration: BoxDecoration(
                       color: theme.colorScheme.error,
@@ -465,14 +474,21 @@ class _HomeScreenState extends State<HomeScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Icon(Icons.delete, color: theme.colorScheme.onError),
                   ),
-                  confirmDismiss: (_) async {
-                    await scoresheetRepository.delete(scoresheet.id);
-                    setState(() {
-                      _scoresheets.removeWhere(
-                        (item) => item.id == scoresheet.id,
+                  confirmDismiss: (direction) async {
+                    if (direction == DismissDirection.startToEnd) {
+                      final path = await scoresheetRepository.getFilePath(scoresheet.id);
+                      await Share.shareXFiles(
+                        [XFile(path, mimeType: 'application/x-chess-pgn')],
                       );
-                      _clearMissingFilters(_buildFilterData());
-                    });
+                    } else {
+                      await scoresheetRepository.delete(scoresheet.id);
+                      setState(() {
+                        _scoresheets.removeWhere(
+                          (item) => item.id == scoresheet.id,
+                        );
+                        _clearMissingFilters(_buildFilterData());
+                      });
+                    }
                     return false;
                   },
                   child: _buildScoresheetCard(context, scoresheet),
@@ -626,19 +642,19 @@ class _HomeScreenState extends State<HomeScreen>
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (players != null)
-                    Text(players, style: theme.textTheme.bodyMedium),
-                  if (players != null && eventRound != null)
-                    const SizedBox(height: 4),
-                  if (eventRound != null)
-                    Text(eventRound, style: theme.textTheme.bodySmall),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (players != null)
+                      Text(players, style: theme.textTheme.bodyMedium),
+                    if (players != null && eventRound != null)
+                      const SizedBox(height: 4),
+                    if (eventRound != null)
+                      Text(eventRound, style: theme.textTheme.bodySmall),
+                  ],
+                ),
               ),
-              const Spacer(),
-              const SizedBox(width: 24),
             ],
           ),
         ),
