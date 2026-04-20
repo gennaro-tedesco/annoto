@@ -41,7 +41,7 @@ function assemblePgn(data: { headers: Record<string, string>; moves: string }): 
   for (const tag of _tagOrder) {
     pgn += `[${tag} "${data.headers[tag] ?? '?'}"]\n`
   }
-  const moves = data.moves.trim()
+  const moves = data.moves.trim().replace(/0-0-0/g, 'O-O-O').replace(/0-0/g, 'O-O')
   const result = data.headers['Result'] ?? '*'
   pgn += '\n' + moves
   if (!moves.endsWith(result) && !moves.endsWith('*')) {
