@@ -29,17 +29,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
+  static const _bottomControlHeight = 56.0;
   static const _createButtonWidth = 84.0;
-  static const _createButtonHeight = 56.0;
+  static const _createButtonHeight = _bottomControlHeight;
   static const _createButtonBottom = 72.0;
-  static const _tabStripHeight = 10.0;
+  static const _tabStripHeight = _bottomControlHeight;
   static const _fabOverlayHeight = _createButtonBottom + _createButtonHeight;
   static const _bottomOverlaySideInset = 16.0;
   static const _bottomOverlayBottomInset = 16.0;
   static const _contentBottomClearance =
       _bottomOverlayBottomInset + _fabOverlayHeight;
   static const _filterButtonWidth = 84.0;
-  static const _filterButtonHeight = 56.0;
+  static const _filterButtonHeight = _bottomControlHeight;
   static const _filterPanelMaxWidth = 340.0;
   static const _filterSpacing = 12.0;
   static const _filterMenuHeight = 280.0;
@@ -891,7 +892,7 @@ class _HomeScreenState extends State<HomeScreen>
       child: InkWell(
         onTap: onTap,
         child: Container(
-          height: 56,
+          height: _tabStripHeight,
           decoration: selected
               ? BoxDecoration(
                   border: Border(

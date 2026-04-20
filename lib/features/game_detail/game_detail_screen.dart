@@ -85,6 +85,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
         setState(() => _editingMove = null);
       }
     }
+
     move.whiteFocus.addListener(listener);
     move.blackFocus.addListener(listener);
   }
@@ -192,9 +193,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
 
   Future<void> _share() async {
     final path = await scoresheetRepository.getFilePath(_scoresheet.id);
-    await Share.shareXFiles(
-      [XFile(path, mimeType: 'application/x-chess-pgn')],
-    );
+    await Share.shareXFiles([XFile(path, mimeType: 'application/x-chess-pgn')]);
   }
 
   Future<void> _save() async {
@@ -399,29 +398,26 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     readOnly: !isEditing,
                     controller: move.white,
                     onChanged: (_) => _runValidation(),
-                    style:
-                        whiteInvalid
-                            ? TextStyle(color: theme.colorScheme.error)
-                            : null,
+                    style: whiteInvalid
+                        ? TextStyle(color: theme.colorScheme.error)
+                        : null,
                     decoration: InputDecoration(
                       hintText: 'White',
                       hintStyle: hintStyle,
-                      enabledBorder:
-                          whiteInvalid
-                              ? OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: theme.colorScheme.error,
-                                ),
-                              )
-                              : null,
-                      focusedBorder:
-                          whiteInvalid
-                              ? OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: theme.colorScheme.error,
-                                ),
-                              )
-                              : null,
+                      enabledBorder: whiteInvalid
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                              ),
+                            )
+                          : null,
+                      focusedBorder: whiteInvalid
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                              ),
+                            )
+                          : null,
                     ),
                   ),
                 ),
@@ -441,29 +437,26 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     readOnly: !isEditing,
                     controller: move.black,
                     onChanged: (_) => _runValidation(),
-                    style:
-                        blackInvalid
-                            ? TextStyle(color: theme.colorScheme.error)
-                            : null,
+                    style: blackInvalid
+                        ? TextStyle(color: theme.colorScheme.error)
+                        : null,
                     decoration: InputDecoration(
                       hintText: 'Black',
                       hintStyle: hintStyle,
-                      enabledBorder:
-                          blackInvalid
-                              ? OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: theme.colorScheme.error,
-                                ),
-                              )
-                              : null,
-                      focusedBorder:
-                          blackInvalid
-                              ? OutlineInputBorder(
-                                borderSide: BorderSide(
-                                  color: theme.colorScheme.error,
-                                ),
-                              )
-                              : null,
+                      enabledBorder: blackInvalid
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                              ),
+                            )
+                          : null,
+                      focusedBorder: blackInvalid
+                          ? OutlineInputBorder(
+                              borderSide: BorderSide(
+                                color: theme.colorScheme.error,
+                              ),
+                            )
+                          : null,
                     ),
                   ),
                 ),

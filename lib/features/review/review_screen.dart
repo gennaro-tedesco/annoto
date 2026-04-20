@@ -277,24 +277,21 @@ class _ReviewScreenState extends State<ReviewScreen> {
             child: TextField(
               controller: move.white,
               onChanged: (_) => _runValidation(),
-              style:
-                  whiteInvalid
-                      ? TextStyle(color: theme.colorScheme.error)
-                      : null,
+              style: whiteInvalid
+                  ? TextStyle(color: theme.colorScheme.error)
+                  : null,
               decoration: InputDecoration(
                 hintText: 'White',
-                enabledBorder:
-                    whiteInvalid
-                        ? OutlineInputBorder(
-                          borderSide: BorderSide(color: theme.colorScheme.error),
-                        )
-                        : null,
-                focusedBorder:
-                    whiteInvalid
-                        ? OutlineInputBorder(
-                          borderSide: BorderSide(color: theme.colorScheme.error),
-                        )
-                        : null,
+                enabledBorder: whiteInvalid
+                    ? OutlineInputBorder(
+                        borderSide: BorderSide(color: theme.colorScheme.error),
+                      )
+                    : null,
+                focusedBorder: whiteInvalid
+                    ? OutlineInputBorder(
+                        borderSide: BorderSide(color: theme.colorScheme.error),
+                      )
+                    : null,
               ),
             ),
           ),
@@ -303,24 +300,21 @@ class _ReviewScreenState extends State<ReviewScreen> {
             child: TextField(
               controller: move.black,
               onChanged: (_) => _runValidation(),
-              style:
-                  blackInvalid
-                      ? TextStyle(color: theme.colorScheme.error)
-                      : null,
+              style: blackInvalid
+                  ? TextStyle(color: theme.colorScheme.error)
+                  : null,
               decoration: InputDecoration(
                 hintText: 'Black',
-                enabledBorder:
-                    blackInvalid
-                        ? OutlineInputBorder(
-                          borderSide: BorderSide(color: theme.colorScheme.error),
-                        )
-                        : null,
-                focusedBorder:
-                    blackInvalid
-                        ? OutlineInputBorder(
-                          borderSide: BorderSide(color: theme.colorScheme.error),
-                        )
-                        : null,
+                enabledBorder: blackInvalid
+                    ? OutlineInputBorder(
+                        borderSide: BorderSide(color: theme.colorScheme.error),
+                      )
+                    : null,
+                focusedBorder: blackInvalid
+                    ? OutlineInputBorder(
+                        borderSide: BorderSide(color: theme.colorScheme.error),
+                      )
+                    : null,
               ),
             ),
           ),
