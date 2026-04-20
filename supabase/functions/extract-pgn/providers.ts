@@ -202,6 +202,7 @@ export class OpenRouterProvider implements PgnProvider {
     }
 
     const data = await res.json()
+    console.log('OpenRouter API response', JSON.stringify(data).slice(0, 500))
     const content: string = data?.choices?.[0]?.message?.content ?? ''
     if (!content.trim()) throw new Error('empty_model_output')
     return _parsePgnData(content)
@@ -243,6 +244,7 @@ export class GroqProvider implements PgnProvider {
     }
 
     const data = await res.json()
+    console.log('Groq API response', JSON.stringify(data).slice(0, 500))
     const content: string = data?.choices?.[0]?.message?.content ?? ''
     if (!content.trim()) throw new Error('empty_model_output')
     return _parsePgnData(content)

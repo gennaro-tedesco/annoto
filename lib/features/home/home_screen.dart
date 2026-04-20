@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:annoto/app/ai_models.dart';
 import 'package:annoto/app/app_state.dart';
 import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/features/game_detail/game_detail_screen.dart';
@@ -138,10 +139,12 @@ class _HomeScreenState extends State<HomeScreen>
     String? pgn;
 
     try {
-      final provider = AppStateScope.of(context).selectedProvider.providerKey;
+      final selectedProvider = AppStateScope.of(context).selectedProvider;
+      final provider = selectedProvider.providerKey;
+      final model = providerModels[selectedProvider]!.first;
       final response = await Supabase.instance.client.functions.invoke(
         'extract-pgn',
-        body: {'image': b64, 'mimeType': mimeType, 'provider': provider},
+        body: {'image': b64, 'mimeType': mimeType, 'provider': provider, 'model': model},
       );
       final data = response.data as Map<String, dynamic>;
       if (data['error'] != null) {

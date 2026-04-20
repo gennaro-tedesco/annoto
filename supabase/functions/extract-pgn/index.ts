@@ -18,11 +18,11 @@ Deno.serve(async (req: Request) => {
   } = await supabase.auth.getUser()
   if (authError || !user) return reply({ error: 'unauthorized' }, 401)
 
-  const { image, mimeType, provider: providerName } = await req.json()
+  const { image, mimeType, provider: providerName, model } = await req.json()
   if (!image) return reply({ error: 'empty_input' }, 400)
   if (image.length > MAX_BYTES) return reply({ error: 'payload_too_large' }, 413)
 
-  const provider = getProvider(providerName)
+  const provider = getProvider(providerName, model)
 
   try {
     const data = await provider.extractPgn(image, mimeType ?? 'image/jpeg')
