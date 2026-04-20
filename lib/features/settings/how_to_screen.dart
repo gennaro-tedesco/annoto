@@ -7,18 +7,10 @@ class HowToScreen extends StatelessWidget {
     (
       title: 'Home',
       actions: [
-        'Tap Home or Files to switch tabs.',
         'Tap the settings icon to open the settings panel.',
         'Tap the + button to choose how to add a scoresheet image.',
-        'Tap the filter button to unfold the Home filters upward from the bottom bar.',
+        'Tap the filter icon to unfold the filters upward from the bottom controls.',
         'Use AND or OR to combine tournament, round, white player, and black player selections and narrow the game cards.',
-      ],
-    ),
-    (
-      title: 'Files',
-      actions: [
-        'Use Files to access uploaded scoresheets and saved PGN records.',
-        'Tap a file when file management is implemented to open review details.',
       ],
     ),
     (

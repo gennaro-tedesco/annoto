@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import 'about_screen.dart';
 import 'appearance_settings_screen.dart';
-import 'how_to_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -55,13 +54,6 @@ class SettingsScreen extends StatelessWidget {
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () =>
                         _openSubpage(context, const AppearanceSettingsScreen()),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    visualDensity: _tileDensity,
-                    title: const Text('How to'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _openSubpage(context, const HowToScreen()),
                   ),
                   const Divider(height: 1),
                   ListTile(

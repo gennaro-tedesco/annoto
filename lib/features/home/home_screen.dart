@@ -13,10 +13,9 @@ import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/services/pgn_validator.dart';
 import 'package:annoto/widgets/gradient_text.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-enum _Tab { home, files }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,13 +31,14 @@ class _HomeScreenState extends State<HomeScreen>
   static const _bottomControlHeight = 56.0;
   static const _createButtonWidth = 84.0;
   static const _createButtonHeight = _bottomControlHeight;
-  static const _createButtonBottom = 72.0;
-  static const _tabStripHeight = _bottomControlHeight;
+  static const _createButtonBottom = 0.0;
   static const _fabOverlayHeight = _createButtonBottom + _createButtonHeight;
   static const _bottomOverlaySideInset = 16.0;
   static const _bottomOverlayBottomInset = 16.0;
   static const _contentBottomClearance =
       _bottomOverlayBottomInset + _fabOverlayHeight;
+  static const _homeListBottomClearance =
+      _contentBottomClearance + _listItemSpacing;
   static const _filterButtonWidth = 84.0;
   static const _filterButtonHeight = _bottomControlHeight;
   static const _filterPanelMaxWidth = 340.0;
@@ -46,14 +46,13 @@ class _HomeScreenState extends State<HomeScreen>
   static const _filterMenuHeight = 280.0;
   static const _listSideInset = 16.0;
   static const _listTopInset = 12.0;
-  static const _listItemSpacing = 8.0;
+  static const _listItemSpacing = 12.0;
   static const _cardInternalPadding = 16.0;
   static const _swipeRevealPadding = 20.0;
   static const _invalidIndicatorSize = 10.0;
   static const _invalidIndicatorInset = 8.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  _Tab _tab = _Tab.home;
   List<Scoresheet> _scoresheets = [];
   bool _filtersOpen = false;
   late final AnimationController _filterSpinController;
@@ -87,10 +86,19 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  void _selectTab(_Tab tab) {
-    setState(() {
-      _tab = tab;
-    });
+  void _toggleFilters() {
+    if (_filtersOpen) {
+      _filterSpinController.reverse(from: 1.0);
+    } else {
+      _filterSpinController.forward(from: 0.0);
+    }
+    setState(() => _filtersOpen = !_filtersOpen);
+  }
+
+  void _closeFilters() {
+    if (!_filtersOpen) return;
+    _filterSpinController.reverse(from: 1.0);
+    setState(() => _filtersOpen = false);
   }
 
   void _openSettings() {
@@ -200,11 +208,6 @@ class _HomeScreenState extends State<HomeScreen>
         theme.colorScheme.surfaceContainerHighest;
     final overlayWidth = MediaQuery.sizeOf(context).width - 32;
 
-    final appBarTitle = switch (_tab) {
-      _Tab.home => 'annoto',
-      _Tab.files => 'files',
-    };
-
     return Scaffold(
       key: _scaffoldKey,
       endDrawer: SizedBox(
@@ -218,7 +221,7 @@ class _HomeScreenState extends State<HomeScreen>
             Image.asset('images/logo.png', height: 38),
             const SizedBox(width: 8),
             GradientText(
-              appBarTitle,
+              'annoto',
               style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
             ),
           ],
@@ -237,48 +240,13 @@ class _HomeScreenState extends State<HomeScreen>
         children: [
           Column(
             children: [
-              Expanded(
-                child: _tab == _Tab.home
-                    ? _buildHomeTab2(context)
-                    : _buildFilesEmptyState(context),
-              ),
+              Expanded(child: _buildHomeTab2(context)),
               SizedBox(
                 height:
                     MediaQuery.of(context).padding.bottom +
-                    _contentBottomClearance +
-                    _tabStripHeight,
+                    _homeListBottomClearance,
               ),
             ],
-          ),
-          if (_filtersOpen)
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () => setState(() => _filtersOpen = false),
-                behavior: HitTestBehavior.opaque,
-              ),
-            ),
-          Positioned(
-            left: _bottomOverlaySideInset,
-            bottom:
-                MediaQuery.of(context).padding.bottom +
-                _bottomOverlayBottomInset +
-                _fabOverlayHeight +
-                8,
-            child: ClipRect(
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                alignment: Alignment.bottomCenter,
-                child: SizedBox(
-                  width: overlayWidth
-                      .clamp(_filterButtonWidth, _filterPanelMaxWidth)
-                      .toDouble(),
-                  child: _tab == _Tab.home && _filtersOpen
-                      ? _buildFilterPanel(context, _buildFilterData())
-                      : const SizedBox.shrink(),
-                ),
-              ),
-            ),
           ),
           Positioned(
             left: _bottomOverlaySideInset,
@@ -288,6 +256,39 @@ class _HomeScreenState extends State<HomeScreen>
                 _bottomOverlayBottomInset,
             height: _fabOverlayHeight,
             child: _buildBottomOverlay(context, overlayWidth, fillColor),
+          ),
+          if (_filtersOpen)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _closeFilters,
+                behavior: HitTestBehavior.opaque,
+                child: ColoredBox(
+                  color: theme.colorScheme.scrim.withValues(alpha: 0.45),
+                ),
+              ),
+            ),
+          Positioned(
+            left: _bottomOverlaySideInset,
+            bottom:
+                MediaQuery.of(context).padding.bottom +
+                _bottomOverlayBottomInset +
+                _fabOverlayHeight +
+                16,
+            child: ClipRect(
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+                alignment: Alignment.bottomCenter,
+                child: SizedBox(
+                  width: overlayWidth
+                      .clamp(_filterButtonWidth, _filterPanelMaxWidth)
+                      .toDouble(),
+                  child: _filtersOpen
+                      ? _buildFilterPanel(context, _buildFilterData())
+                      : const SizedBox.shrink(),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -303,97 +304,55 @@ class _HomeScreenState extends State<HomeScreen>
     return SizedBox(
       width: overlayWidth,
       height: _fabOverlayHeight,
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.bottomCenter,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: SizedBox(
-              width: overlayWidth,
-              height: _tabStripHeight,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildHomeTab(
-                      context,
-                      icon: Icons.home_outlined,
-                      label: 'home',
-                      selected: _tab == _Tab.home,
-                      onTap: () => _selectTab(_Tab.home),
-                    ),
-                  ),
-                  Expanded(
-                    child: _buildHomeTab(
-                      context,
-                      icon: Icons.folder_outlined,
-                      label: 'files',
-                      selected: _tab == _Tab.files,
-                      onTap: () => _selectTab(_Tab.files),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            bottom: _createButtonBottom,
+          SizedBox(
+            width: _filterButtonWidth,
+            height: _filterButtonHeight,
             child: RotationTransition(
               turns: _filterSpinController,
               child: IconButton(
-                onPressed: _tab == _Tab.home
-                    ? () {
-                        if (_filtersOpen) {
-                          _filterSpinController.reverse(from: 1.0);
-                        } else {
-                          _filterSpinController.forward(from: 0.0);
-                        }
-                        setState(() => _filtersOpen = !_filtersOpen);
-                      }
-                    : null,
-                icon: Icon(
-                  Icons.filter_list_outlined,
-                  size: AppIconSize.inlineAction,
-                  color: _hasActiveFilters
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface,
-                ),
+                onPressed: _toggleFilters,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.expand(),
+                iconSize: _createButtonHeight * 0.5,
+                color: _hasActiveFilters
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface,
+                icon: const Icon(LucideIcons.sliders_horizontal),
               ),
             ),
           ),
-          Positioned(
-            right: 0,
-            bottom: _createButtonBottom,
-            child: SizedBox(
-              width: _createButtonWidth,
-              height: _createButtonHeight,
-              child: FloatingActionButton(
-                heroTag: 'new_scoresheet',
-                onPressed: _openAddSheetMenu,
-                backgroundColor: fillColor,
-                foregroundColor: theme.colorScheme.onSurface,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.add, size: AppIconSize.inlineAction),
-                    const SizedBox(width: 4),
-                    SizedBox(
-                      width: 35,
-                      height: 35,
-                      child: OverflowBox(
-                        maxWidth: 88,
-                        maxHeight: 88,
-                        child: Icon(
-                          Icons.image_search_outlined,
-                          size: 28,
-                          color: theme.colorScheme.onSurface,
-                        ),
+          SizedBox(
+            width: _createButtonWidth,
+            height: _createButtonHeight,
+            child: FloatingActionButton(
+              heroTag: 'new_scoresheet',
+              onPressed: _openAddSheetMenu,
+              backgroundColor: fillColor,
+              foregroundColor: theme.colorScheme.onSurface,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Icon(Icons.add, size: AppIconSize.inlineAction),
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 35,
+                    height: 35,
+                    child: OverflowBox(
+                      maxWidth: 88,
+                      maxHeight: 88,
+                      child: Icon(
+                        Icons.image_search_outlined,
+                        size: 28,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -473,11 +432,11 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           )
         : ListView.builder(
-            padding: const EdgeInsets.fromLTRB(
+            padding: EdgeInsets.fromLTRB(
               _listSideInset,
               _listTopInset,
               _listSideInset,
-              _listItemSpacing,
+              _homeListBottomClearance,
             ),
             itemCount: filteredScoresheets.length,
             itemBuilder: (context, index) {
@@ -838,98 +797,6 @@ class _HomeScreenState extends State<HomeScreen>
         .toList();
     if (values.isEmpty) return null;
     return values.join(separator);
-  }
-
-  Widget _buildFilesEmptyState(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        Expanded(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.folder_open_outlined,
-                  size: 64,
-                  color: theme.colorScheme.onSurfaceVariant.withValues(
-                    alpha: 0.35,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No files yet',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Uploaded scoresheets will appear here',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHomeTab(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    final fillColor =
-        theme.inputDecorationTheme.fillColor ??
-        theme.colorScheme.surfaceContainerHighest;
-    return Material(
-      color: fillColor,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          height: _tabStripHeight,
-          decoration: selected
-              ? BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: theme.colorScheme.primary,
-                      width: 2,
-                    ),
-                  ),
-                )
-              : null,
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: AppIconSize.inlineAction,
-                  color: selected
-                      ? theme.colorScheme.onSurface
-                      : theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: selected
-                        ? theme.colorScheme.onSurface
-                        : theme.colorScheme.onSurfaceVariant,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
