@@ -93,11 +93,11 @@ function _googleErrorCode(status: number, body: string): string {
   return 'extraction_failed'
 }
 
-function _mistralErrorCode(status: number, body: string): string {
+function _openRouterErrorCode(status: number, body: string): string {
   const n = body.toLowerCase()
   if (status === 503 || n.includes('unavailable')) return 'provider_unavailable'
   if (status === 404 || n.includes('not found') || n.includes('unknown model')) return 'model_not_found'
-  if (status === 429 || n.includes('resource_exhausted') || n.includes('quota') || n.includes('billing') || n.includes('credit')) return 'quota_exceeded'
+  if (status === 429 || n.includes('rate limit') || n.includes('quota') || n.includes('billing') || n.includes('credit')) return 'quota_exceeded'
   return 'extraction_failed'
 }
 
@@ -167,21 +167,20 @@ export class GoogleProvider implements PgnProvider {
   }
 }
 
-export type MistralConfig = { apiKey: string; extractionModel: string }
+export type OpenRouterConfig = { apiKey: string; model: string }
 
-export class MistralProvider implements PgnProvider {
-  constructor(private readonly cfg: MistralConfig) {}
+export class OpenRouterProvider implements PgnProvider {
+  constructor(private readonly cfg: OpenRouterConfig) {}
 
   async extractPgn(imageBase64: string, mimeType: string): Promise<PgnData> {
-    const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.cfg.apiKey}`,
         'Content-Type': 'application/json',
-        Accept: 'application/json',
       },
       body: JSON.stringify({
-        model: this.cfg.extractionModel,
+        model: this.cfg.model,
         messages: [
           {
             role: 'user',
@@ -191,19 +190,19 @@ export class MistralProvider implements PgnProvider {
             ],
           },
         ],
-        response_format: _responseFormatJsonSchema(),
+        response_format: { type: 'json_object' },
         temperature: 0,
       }),
     })
 
     if (!res.ok) {
       const errBody = await res.text()
-      console.error('Mistral API error', res.status, errBody)
-      throw new Error(_mistralErrorCode(res.status, errBody))
+      console.error('OpenRouter API error', res.status, errBody)
+      throw new Error(_openRouterErrorCode(res.status, errBody))
     }
 
     const data = await res.json()
-    const content = _messageContentToString(data?.choices?.[0]?.message?.content)
+    const content: string = data?.choices?.[0]?.message?.content ?? ''
     if (!content.trim()) throw new Error('empty_model_output')
     return _parsePgnData(content)
   }

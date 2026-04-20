@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-enum AiProvider { gemini, mistral, groq }
+enum AiProvider { gemini, openrouter, groq }
 
 extension AiProviderLabel on AiProvider {
   String get label {
     switch (this) {
       case AiProvider.gemini:
         return 'Gemini';
-      case AiProvider.mistral:
-        return 'Mistral AI';
+      case AiProvider.openrouter:
+        return 'OpenRouter 👑';
       case AiProvider.groq:
         return 'Groq';
     }
@@ -21,8 +21,8 @@ extension AiProviderLabel on AiProvider {
     switch (this) {
       case AiProvider.gemini:
         return 'google';
-      case AiProvider.mistral:
-        return 'mistral';
+      case AiProvider.openrouter:
+        return 'openrouter';
       case AiProvider.groq:
         return 'groq';
     }

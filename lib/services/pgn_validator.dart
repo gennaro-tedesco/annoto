@@ -6,12 +6,20 @@ List<bool> validateMoves(List<String> sans) {
   var foundInvalidMove = false;
 
   for (final san in sans) {
-    if (foundInvalidMove) {
+    if (foundInvalidMove || san.isEmpty) {
       validity.add(false);
+      foundInvalidMove = true;
       continue;
     }
 
-    final move = position.parseSan(san);
+    final Move? move;
+    try {
+      move = position.parseSan(san);
+    } catch (_) {
+      validity.add(false);
+      foundInvalidMove = true;
+      continue;
+    }
     if (move == null) {
       validity.add(false);
       foundInvalidMove = true;

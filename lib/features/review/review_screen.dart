@@ -276,6 +276,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           Expanded(
             child: TextField(
               controller: move.white,
+              onChanged: (_) => _runValidation(),
               style:
                   whiteInvalid
                       ? TextStyle(color: theme.colorScheme.error)
@@ -301,6 +302,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           Expanded(
             child: TextField(
               controller: move.black,
+              onChanged: (_) => _runValidation(),
               style:
                   blackInvalid
                       ? TextStyle(color: theme.colorScheme.error)
