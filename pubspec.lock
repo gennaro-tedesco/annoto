@@ -194,7 +194,7 @@ packages:
     source: hosted
     version: "1.3.3"
   fast_immutable_collections:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: fast_immutable_collections
       sha256: "58cec99fc068427c71901e82d4b31b232240ebe6e61200993c2cb91bcada0ff6"

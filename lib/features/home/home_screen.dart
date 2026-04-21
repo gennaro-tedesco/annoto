@@ -217,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       appBar: AppBar(
         centerTitle: true,
-        title: Image.asset('images/logo.png', height: 38),
+        title: Image.asset('images/logo.png', height: 50),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
