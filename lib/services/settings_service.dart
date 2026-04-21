@@ -53,10 +53,8 @@ abstract final class SettingsService {
       () => prefs.setString(_keyFont, appFontNotifier.value.name),
     );
     boardColorSchemeNotifier.addListener(
-      () => prefs.setString(
-        _keyBoardColorScheme,
-        boardColorSchemeNotifier.value,
-      ),
+      () =>
+          prefs.setString(_keyBoardColorScheme, boardColorSchemeNotifier.value),
     );
     boardPieceSetNotifier.addListener(
       () => prefs.setString(_keyBoardPieceSet, boardPieceSetNotifier.value),

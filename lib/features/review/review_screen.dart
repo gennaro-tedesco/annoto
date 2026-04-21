@@ -193,10 +193,13 @@ class _ReviewScreenState extends State<ReviewScreen> {
                                 controller: _headerControllers[tag],
                                 decoration: InputDecoration(
                                   hintText: tag,
-                                  hintStyle: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant
-                                        .withOpacity(0.5),
-                                  ),
+                                  hintStyle: theme.textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: theme
+                                            .colorScheme
+                                            .onSurfaceVariant
+                                            .withOpacity(0.5),
+                                      ),
                                   isDense: true,
                                   constraints: BoxConstraints(
                                     minHeight: _inputCardsHeight,

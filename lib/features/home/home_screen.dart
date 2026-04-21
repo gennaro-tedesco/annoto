@@ -621,10 +621,9 @@ class _HomeScreenState extends State<HomeScreen>
           child: InkWell(
             onTap: () {
               if (!invalid) {
-                Navigator.of(context).pushNamed(
-                  BoardScreen.routeName,
-                  arguments: scoresheet,
-                );
+                Navigator.of(
+                  context,
+                ).pushNamed(BoardScreen.routeName, arguments: scoresheet);
               }
             },
             onLongPress: () async {

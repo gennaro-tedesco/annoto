@@ -4,7 +4,7 @@ APP_VERSION := $(shell tag=$$(git describe --tags --exact-match 2>/dev/null || t
 BUILD_NUMBER := $(shell git rev-list --count HEAD)
 
 emulator:
-	emulator -avd pixel_7 -no-snapshot-load -scale 1.5
+	emulator -avd pixel_7_large -partition-size 4096 -no-snapshot-load -scale 1.5
 
 run:
 	flutter run --dart-define-from-file=config.json
