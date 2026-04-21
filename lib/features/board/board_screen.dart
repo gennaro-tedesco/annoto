@@ -1,8 +1,44 @@
+import 'package:annoto/app/themes.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+
+const boardColorSchemes = <(String, ChessboardColorScheme)>[
+  ('Brown', ChessboardColorScheme.brown),
+  ('Blue', ChessboardColorScheme.blue),
+  ('Green', ChessboardColorScheme.green),
+  ('IC', ChessboardColorScheme.ic),
+  ('Blue 2', ChessboardColorScheme.blue2),
+  ('Blue 3', ChessboardColorScheme.blue3),
+  ('Blue Marble', ChessboardColorScheme.blueMarble),
+  ('Canvas', ChessboardColorScheme.canvas),
+  ('Green Plastic', ChessboardColorScheme.greenPlastic),
+  ('Grey', ChessboardColorScheme.grey),
+  ('Horsey', ChessboardColorScheme.horsey),
+  ('Leather', ChessboardColorScheme.leather),
+  ('Maple', ChessboardColorScheme.maple),
+  ('Maple 2', ChessboardColorScheme.maple2),
+  ('Marble', ChessboardColorScheme.marble),
+  ('Metal', ChessboardColorScheme.metal),
+  ('Newspaper', ChessboardColorScheme.newspaper),
+  ('Olive', ChessboardColorScheme.olive),
+  ('Pink Pyramid', ChessboardColorScheme.pinkPyramid),
+  ('Purple', ChessboardColorScheme.purple),
+  ('Purple Diag', ChessboardColorScheme.purpleDiag),
+  ('Wood', ChessboardColorScheme.wood),
+  ('Wood 2', ChessboardColorScheme.wood2),
+  ('Wood 3', ChessboardColorScheme.wood3),
+  ('Wood 4', ChessboardColorScheme.wood4),
+];
+
+ChessboardColorScheme _schemeByLabel(String label) =>
+    boardColorSchemes
+        .where((e) => e.$1 == label)
+        .map((e) => e.$2)
+        .firstOrNull ??
+    ChessboardColorScheme.brown;
 
 class BoardScreen extends StatefulWidget {
   const BoardScreen({super.key});
@@ -20,38 +56,10 @@ class _BoardScreenState extends State<BoardScreen> {
   late final Map<String, String> _tags;
   int _index = 0;
   Side _orientation = Side.white;
-  ChessboardColorScheme _colorScheme = ChessboardColorScheme.brown;
-  PieceSet _pieceSet = PieceSet.cburnett;
+  late ChessboardColorScheme _colorScheme;
+  late PieceSet _pieceSet;
   bool _initialised = false;
   final _currentRowKey = GlobalKey();
-
-  static const _colorSchemes = <(String, ChessboardColorScheme)>[
-    ('Brown', ChessboardColorScheme.brown),
-    ('Blue', ChessboardColorScheme.blue),
-    ('Green', ChessboardColorScheme.green),
-    ('IC', ChessboardColorScheme.ic),
-    ('Blue 2', ChessboardColorScheme.blue2),
-    ('Blue 3', ChessboardColorScheme.blue3),
-    ('Blue Marble', ChessboardColorScheme.blueMarble),
-    ('Canvas', ChessboardColorScheme.canvas),
-    ('Green Plastic', ChessboardColorScheme.greenPlastic),
-    ('Grey', ChessboardColorScheme.grey),
-    ('Horsey', ChessboardColorScheme.horsey),
-    ('Leather', ChessboardColorScheme.leather),
-    ('Maple', ChessboardColorScheme.maple),
-    ('Maple 2', ChessboardColorScheme.maple2),
-    ('Marble', ChessboardColorScheme.marble),
-    ('Metal', ChessboardColorScheme.metal),
-    ('Newspaper', ChessboardColorScheme.newspaper),
-    ('Olive', ChessboardColorScheme.olive),
-    ('Pink Pyramid', ChessboardColorScheme.pinkPyramid),
-    ('Purple', ChessboardColorScheme.purple),
-    ('Purple Diag', ChessboardColorScheme.purpleDiag),
-    ('Wood', ChessboardColorScheme.wood),
-    ('Wood 2', ChessboardColorScheme.wood2),
-    ('Wood 3', ChessboardColorScheme.wood3),
-    ('Wood 4', ChessboardColorScheme.wood4),
-  ];
 
   static const _pieceSymbols = {
     'N': '♘',
@@ -75,14 +83,21 @@ class _BoardScreenState extends State<BoardScreen> {
           ModalRoute.of(context)!.settings.arguments as Scoresheet;
       _tags = _parseTags(scoresheet.pgn);
       _buildPositions(scoresheet.pgn);
+      _colorScheme = _schemeByLabel(boardColorSchemeNotifier.value);
+      _pieceSet = PieceSet.values.firstWhere(
+        (s) => s.name == boardPieceSetNotifier.value,
+        orElse: () => PieceSet.cburnett,
+      );
       _initialised = true;
     }
   }
 
   Map<String, String> _parseTags(String pgn) {
     final tags = <String, String>{};
-    for (final m
-        in RegExp(r'^\[(\w+)\s+"(.*)"\]$', multiLine: true).allMatches(pgn)) {
+    for (final m in RegExp(
+      r'^\[(\w+)\s+"(.*)"\]$',
+      multiLine: true,
+    ).allMatches(pgn)) {
       final v = m.group(2)!;
       if (v.isNotEmpty && v != '?') tags[m.group(1)!] = v;
     }
@@ -93,8 +108,9 @@ class _BoardScreenState extends State<BoardScreen> {
     final movesMatch = RegExp(r'\n\n(.+)', dotAll: true).firstMatch(pgn);
     final movesText = movesMatch?.group(1)?.trim() ?? pgn;
     final sans = <String>[];
-    for (final m
-        in RegExp(r'(\d+)\.\s*(\S+)(?:\s+(\S+))?').allMatches(movesText)) {
+    for (final m in RegExp(
+      r'(\d+)\.\s*(\S+)(?:\s+(\S+))?',
+    ).allMatches(movesText)) {
       final white = m.group(2) ?? '';
       if (white.isNotEmpty) sans.add(white);
       final black = m.group(3);
@@ -165,16 +181,16 @@ class _BoardScreenState extends State<BoardScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             _buildSelectors(theme),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Expanded(child: _buildMoveList(theme)),
           ],
         ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
               IconButton.filled(
@@ -187,18 +203,22 @@ class _BoardScreenState extends State<BoardScreen> {
               ),
               const Spacer(),
               IconButton(
+                iconSize: 35,
                 icon: const Icon(Icons.first_page),
                 onPressed: isFirst ? null : () => _navigate(0),
               ),
               IconButton(
+                iconSize: 35,
                 icon: const Icon(Icons.navigate_before),
                 onPressed: isFirst ? null : () => _navigate(_index - 1),
               ),
               IconButton(
+                iconSize: 35,
                 icon: const Icon(Icons.navigate_next),
                 onPressed: isLast ? null : () => _navigate(_index + 1),
               ),
               IconButton(
+                iconSize: 35,
                 icon: const Icon(Icons.last_page),
                 onPressed: isLast ? null : () => _navigate(_fens.length - 1),
               ),
@@ -217,12 +237,10 @@ class _BoardScreenState extends State<BoardScreen> {
     final result = _tags['Result'];
     final event = _tags['Event'];
     final round = _tags['Round'];
-    final players =
-        (white != null && black != null) ? '$white \u2212 $black' : null;
-    final parts = [
-      event,
-      if (round != null) 'Round $round',
-    ].nonNulls.toList();
+    final players = (white != null && black != null)
+        ? '$white \u2212 $black'
+        : null;
+    final parts = [event, if (round != null) 'Round $round'].nonNulls.toList();
     final tournament = parts.isEmpty ? null : parts.join(' \u00b7 ');
 
     return Column(
@@ -261,50 +279,75 @@ class _BoardScreenState extends State<BoardScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        PopupMenuButton<ChessboardColorScheme>(
-          icon: const Icon(Icons.palette_outlined),
-          tooltip: 'Board colour',
-          position: PopupMenuPosition.under,
-          constraints: const BoxConstraints(maxHeight: 300),
-          onSelected: (scheme) => setState(() => _colorScheme = scheme),
-          itemBuilder: (_) => [
-            for (final (label, scheme) in _colorSchemes)
-              PopupMenuItem(
-                value: scheme,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 14,
-                      height: 14,
-                      margin: const EdgeInsets.only(right: 10),
-                      decoration: BoxDecoration(
-                        color: scheme.darkSquare,
-                        borderRadius: BorderRadius.circular(3),
+        SizedBox(
+          width: 29,
+          height: 29,
+          child: PopupMenuButton<ChessboardColorScheme>(
+            iconSize: 18,
+            padding: EdgeInsets.zero,
+            icon: const Icon(Icons.palette_outlined),
+            tooltip: 'Board colour',
+            position: PopupMenuPosition.under,
+            constraints: const BoxConstraints(maxHeight: 300),
+            onSelected: (scheme) {
+              final label = boardColorSchemes
+                  .firstWhere((e) => e.$2 == scheme)
+                  .$1;
+              boardColorSchemeNotifier.value = label;
+              setState(() => _colorScheme = scheme);
+            },
+            itemBuilder: (_) => [
+              for (final (label, scheme) in boardColorSchemes)
+                PopupMenuItem(
+                  value: scheme,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 14,
+                        height: 14,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          color: scheme.darkSquare,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
                       ),
-                    ),
-                    Text(label),
-                  ],
+                      Text(label),
+                    ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
-        PopupMenuButton<PieceSet>(
-          icon: const Icon(LucideIcons.chess_king),
-          tooltip: 'Piece set',
-          position: PopupMenuPosition.under,
-          constraints: const BoxConstraints(maxHeight: 300),
-          onSelected: (set) => setState(() => _pieceSet = set),
-          itemBuilder: (_) => [
-            for (final set in PieceSet.values)
-              PopupMenuItem(value: set, child: Text(set.label)),
-          ],
+        SizedBox(
+          width: 29,
+          height: 29,
+          child: PopupMenuButton<PieceSet>(
+            iconSize: 18,
+            padding: EdgeInsets.zero,
+            icon: const Icon(LucideIcons.chess_king),
+            tooltip: 'Piece set',
+            position: PopupMenuPosition.under,
+            constraints: const BoxConstraints(maxHeight: 300),
+            onSelected: (set) {
+              boardPieceSetNotifier.value = set.name;
+              setState(() => _pieceSet = set);
+            },
+            itemBuilder: (_) => [
+              for (final set in PieceSet.values)
+                PopupMenuItem(value: set, child: Text(set.label)),
+            ],
+          ),
         ),
         IconButton(
+          iconSize: 18,
+          constraints: BoxConstraints.tightFor(width: 29, height: 29),
+          padding: EdgeInsets.zero,
           icon: const Icon(LucideIcons.rotate_ccw),
           tooltip: 'Flip board',
           onPressed: () => setState(
-            () => _orientation =
-                _orientation == Side.white ? Side.black : Side.white,
+            () => _orientation = _orientation == Side.white
+                ? Side.black
+                : Side.white,
           ),
         ),
       ],
@@ -333,8 +376,9 @@ class _BoardScreenState extends State<BoardScreen> {
           isWhiteActive: _index == whiteFen,
           isBlackActive: _index == blackFen,
           onWhiteTap: () => _navigate(whiteFen),
-          onBlackTap:
-              blackPly < _sans.length ? () => _navigate(blackFen) : null,
+          onBlackTap: blackPly < _sans.length
+              ? () => _navigate(blackFen)
+              : null,
         );
       },
     );

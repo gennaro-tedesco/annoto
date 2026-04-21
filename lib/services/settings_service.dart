@@ -6,6 +6,8 @@ abstract final class SettingsService {
   static const _keyTheme = 'theme';
   static const _keyFontScale = 'fontScale';
   static const _keyFont = 'font';
+  static const _keyBoardColorScheme = 'boardColorScheme';
+  static const _keyBoardPieceSet = 'boardPieceSet';
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -31,6 +33,16 @@ abstract final class SettingsService {
       }
     }
 
+    final boardColorScheme = prefs.getString(_keyBoardColorScheme);
+    if (boardColorScheme != null) {
+      boardColorSchemeNotifier.value = boardColorScheme;
+    }
+
+    final boardPieceSet = prefs.getString(_keyBoardPieceSet);
+    if (boardPieceSet != null) {
+      boardPieceSetNotifier.value = boardPieceSet;
+    }
+
     themeNotifier.addListener(
       () => prefs.setString(_keyTheme, themeNotifier.value.name),
     );
@@ -39,6 +51,15 @@ abstract final class SettingsService {
     );
     appFontNotifier.addListener(
       () => prefs.setString(_keyFont, appFontNotifier.value.name),
+    );
+    boardColorSchemeNotifier.addListener(
+      () => prefs.setString(
+        _keyBoardColorScheme,
+        boardColorSchemeNotifier.value,
+      ),
+    );
+    boardPieceSetNotifier.addListener(
+      () => prefs.setString(_keyBoardPieceSet, boardPieceSetNotifier.value),
     );
   }
 }

@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 final themeNotifier = ValueNotifier<AppThemeOption>(AppThemeOption.none);
 final uiFontScaleNotifier = ValueNotifier<double>(1.0);
 final appFontNotifier = ValueNotifier<AppFontOption>(AppFontOption.system);
+final boardColorSchemeNotifier = ValueNotifier<String>('Brown');
+final boardPieceSetNotifier = ValueNotifier<String>('cburnett');
 
 enum AppThemeOption {
   none,
