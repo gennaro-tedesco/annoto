@@ -10,7 +10,7 @@ run:
 	flutter run --dart-define-from-file=config.json
 
 build:
-	flutter build apk --release --target-platform android-arm64 --build-number=$(BUILD_NUMBER) --dart-define=APP_VERSION=$(APP_VERSION) --dart-define-from-file=config.json
+	flutter build apk --release --split-per-abi --target-platform android-arm64 --build-number=$(BUILD_NUMBER) --dart-define=APP_VERSION=$(APP_VERSION) --dart-define-from-file=config.json
 
 SUPABASE_PROJECT_REF := $(shell jq -r '.SUPABASE_PROJECT_REF' config.json)
 
