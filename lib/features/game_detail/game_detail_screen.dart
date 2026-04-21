@@ -56,6 +56,8 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   String _initialPgn = '';
   _MovePair? _editingMove;
 
+  static const double _inputCardsHeight = 30.0;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -253,14 +255,22 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                             ),
                             Expanded(
                               child: TextField(
+                                style: theme.textTheme.bodySmall,
                                 controller: _headerControllers[tag],
                                 onChanged: (_) => setState(() {}),
                                 decoration: InputDecoration(
                                   hintText: tag,
+                                  hintStyle: theme.textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: theme
+                                            .colorScheme
+                                            .onSurfaceVariant
+                                            .withOpacity(0.5),
+                                      ),
                                   isDense: true,
-                                  constraints: const BoxConstraints(
-                                    minHeight: 44,
-                                    maxHeight: 44,
+                                  constraints: BoxConstraints(
+                                    minHeight: _inputCardsHeight,
+                                    maxHeight: _inputCardsHeight,
                                   ),
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 16,
@@ -269,6 +279,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                                 ),
                               ),
                             ),
+                            const SizedBox(width: 36),
                           ],
                         ),
                       ),
@@ -404,6 +415,15 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     decoration: InputDecoration(
                       hintText: 'White',
                       hintStyle: hintStyle,
+                      isDense: true,
+                      constraints: BoxConstraints(
+                        minHeight: _inputCardsHeight,
+                        maxHeight: _inputCardsHeight,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       enabledBorder: whiteInvalid
                           ? OutlineInputBorder(
                               borderSide: BorderSide(
@@ -443,6 +463,15 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     decoration: InputDecoration(
                       hintText: 'Black',
                       hintStyle: hintStyle,
+                      isDense: true,
+                      constraints: BoxConstraints(
+                        minHeight: _inputCardsHeight,
+                        maxHeight: _inputCardsHeight,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       enabledBorder: blackInvalid
                           ? OutlineInputBorder(
                               borderSide: BorderSide(
@@ -462,6 +491,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                 ),
               ),
             ),
+            const SizedBox(width: 36),
           ],
         ),
       ),

@@ -45,6 +45,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
   bool _headersExpanded = true;
   bool _movesExpanded = true;
 
+  static const double _inputCardsHeight = 30.0;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -187,13 +189,18 @@ class _ReviewScreenState extends State<ReviewScreen> {
                             ),
                             Expanded(
                               child: TextField(
+                                style: theme.textTheme.bodySmall,
                                 controller: _headerControllers[tag],
                                 decoration: InputDecoration(
                                   hintText: tag,
+                                  hintStyle: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withOpacity(0.5),
+                                  ),
                                   isDense: true,
-                                  constraints: const BoxConstraints(
-                                    minHeight: 44,
-                                    maxHeight: 44,
+                                  constraints: BoxConstraints(
+                                    minHeight: _inputCardsHeight,
+                                    maxHeight: _inputCardsHeight,
                                   ),
                                   contentPadding: const EdgeInsets.symmetric(
                                     horizontal: 16,
@@ -202,6 +209,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                                 ),
                               ),
                             ),
+                            const SizedBox(width: 36),
                           ],
                         ),
                       ),
@@ -282,6 +290,18 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   : null,
               decoration: InputDecoration(
                 hintText: 'White',
+                hintStyle: TextStyle(
+                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                ),
+                isDense: true,
+                constraints: BoxConstraints(
+                  minHeight: _inputCardsHeight,
+                  maxHeight: _inputCardsHeight,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 enabledBorder: whiteInvalid
                     ? OutlineInputBorder(
                         borderSide: BorderSide(color: theme.colorScheme.error),
@@ -305,6 +325,18 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   : null,
               decoration: InputDecoration(
                 hintText: 'Black',
+                hintStyle: TextStyle(
+                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                ),
+                isDense: true,
+                constraints: BoxConstraints(
+                  minHeight: _inputCardsHeight,
+                  maxHeight: _inputCardsHeight,
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 enabledBorder: blackInvalid
                     ? OutlineInputBorder(
                         borderSide: BorderSide(color: theme.colorScheme.error),
@@ -318,6 +350,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
               ),
             ),
           ),
+          const SizedBox(width: 36),
         ],
       ),
     );
