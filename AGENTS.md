@@ -35,9 +35,9 @@ Future features may be added, but the base project should remain simple, clear, 
 - Use **Flutter** as the application framework
 - Use **Dart** for the application code
 - Prefer native platform integrations only when there is no suitable cross-platform Flutter solution
+- Always use variables when introducing new values, never hardcode values in the code
 - Keep the project runnable on macOS development environments targeting Android emulators
 - After every code change run `dart format .`
-- After every code change check whether the new feature must be documented in the "How to" menu item on the home page menu: if so, do so.
 
 ## Codebase expectations
 

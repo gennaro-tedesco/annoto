@@ -1,5 +1,9 @@
+import 'dart:async';
+
+import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/app/themes.dart';
 import 'package:annoto/models/scoresheet.dart';
+import 'package:annoto/services/chess_engine_service.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:flutter/material.dart';
@@ -50,6 +54,11 @@ class BoardScreen extends StatefulWidget {
 }
 
 class _BoardScreenState extends State<BoardScreen> {
+  static const double _boardWidthFactor = 0.9;
+  static const double _selectorGap = 4.0;
+  static const double _selectorSidePadding = 8.0;
+  static const double _selectorMiddleGap = 8.0;
+
   late final PgnGame<PgnNodeData> _game;
   final _positionMap = <PgnChildNode<PgnNodeData>, Position>{};
   final _moveMap = <PgnChildNode<PgnNodeData>, Move>{};
@@ -61,6 +70,12 @@ class _BoardScreenState extends State<BoardScreen> {
   late PieceSet _pieceSet;
   bool _initialised = false;
   final _currentRowKey = GlobalKey();
+  final _engine = ChessEngineService();
+  Timer? _debounce;
+  bool _engineEnabled = false;
+  int _multiPv = 1;
+  List<EngineEvaluation> _evaluations = [];
+  StreamSubscription<List<EngineEvaluation>>? _analysisSub;
 
   static const _pieceSymbols = {
     'N': '♘',
@@ -121,8 +136,17 @@ class _BoardScreenState extends State<BoardScreen> {
         (s) => s.name == boardPieceSetNotifier.value,
         orElse: () => PieceSet.cburnett,
       );
+      _engine.init().catchError((_) {});
       _initialised = true;
     }
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _analysisSub?.cancel();
+    _engine.dispose();
+    super.dispose();
   }
 
   void _buildMaps(PgnNode<PgnNodeData> node, Position pos) {
@@ -151,7 +175,13 @@ class _BoardScreenState extends State<BoardScreen> {
     setState(() {
       _path = List.of(newPath);
       _promotionMove = null;
+      _evaluations = [];
     });
+    if (_engineEnabled) {
+      _debounce?.cancel();
+      _engine.stopAnalysis();
+      _debounce = Timer(const Duration(milliseconds: 200), _startAnalysis);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_currentRowKey.currentContext != null) {
         Scrollable.ensureVisible(
@@ -212,51 +242,203 @@ class _BoardScreenState extends State<BoardScreen> {
             (move.to.rank == Rank.eighth && pos.turn == Side.white));
   }
 
+  void _toggleEngine() {
+    final enabling = !_engineEnabled;
+    setState(() => _engineEnabled = enabling);
+    if (enabling) {
+      _startAnalysis();
+    } else {
+      _analysisSub?.cancel();
+      _analysisSub = null;
+      _engine.stopAnalysis();
+      setState(() => _evaluations = []);
+    }
+  }
+
+  void _setMultiPv(int n) {
+    if (_multiPv == n) return;
+    setState(() => _multiPv = n);
+    if (_engineEnabled) _startAnalysis();
+  }
+
+  void _startAnalysis() {
+    if (!mounted) return;
+    _analysisSub?.cancel();
+    setState(() => _evaluations = []);
+    try {
+      _analysisSub = _engine
+          .startAnalysis(_currentPosition.fen, multiPv: _multiPv)
+          .listen((evals) {
+            if (mounted) setState(() => _evaluations = evals);
+          });
+    } catch (_) {}
+  }
+
+  List<(int, bool, String)> _pvToSan(List<String> pv) {
+    final result = <(int, bool, String)>[];
+    Position pos = _currentPosition;
+    for (final uci in pv) {
+      final move = Move.parse(uci);
+      if (move == null || !pos.isLegal(move)) break;
+      final isWhite = pos.turn == Side.white;
+      final moveNum = pos.fullmoves;
+      final (newPos, san) = pos.makeSan(move);
+      result.add((moveNum, isWhite, san));
+      pos = newPos;
+    }
+    return result;
+  }
+
+  List<Widget> _buildPvTokens(
+    ThemeData theme,
+    List<(int, bool, String)> tokens,
+  ) {
+    final widgets = <Widget>[];
+    for (int i = 0; i < tokens.length; i++) {
+      final (moveNum, isWhite, san) = tokens[i];
+      if (isWhite || i == 0) {
+        widgets.add(
+          Text(
+            isWhite ? '$moveNum. ' : '$moveNum… ',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.outline,
+              fontSize: 11,
+            ),
+          ),
+        );
+      }
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(right: 4),
+          child: Text(
+            _toFigurine(san),
+            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+          ),
+        ),
+      );
+    }
+    return widgets;
+  }
+
+  Widget _buildEvalLine(ThemeData theme, EngineEvaluation eval) {
+    final String? evalText;
+    if (eval.mate != null) {
+      evalText = '#${eval.mate}';
+    } else if (eval.cp != null) {
+      final pawns = eval.cp! / 100.0;
+      evalText = pawns >= 0
+          ? '+${pawns.toStringAsFixed(2)}'
+          : pawns.toStringAsFixed(2);
+    } else {
+      evalText = null;
+    }
+
+    final pvTokens = _pvToSan(eval.pv);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 52,
+            child: evalText != null
+                ? Text(
+                    evalText,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.primary,
+                    ),
+                  )
+                : null,
+          ),
+          Expanded(
+            child: Wrap(
+              spacing: 0,
+              runSpacing: 2,
+              children: _buildPvTokens(theme, pvTokens),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEvalBar(ThemeData theme) {
+    if (!_engineEnabled) return const SizedBox.shrink();
+
+    if (_evaluations.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: SizedBox(
+          height: 14,
+          width: 14,
+          child: CircularProgressIndicator(strokeWidth: 1.5),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final eval in _evaluations) _buildEvalLine(theme, eval),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final fillColor =
         theme.inputDecorationTheme.fillColor ??
         theme.colorScheme.surfaceContainerHighest;
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final boardSize = screenWidth * 0.9;
     final isFirst = _path.isEmpty;
     final isLast = _currentNode.children.isEmpty;
 
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            _buildMetadata(theme),
-            const SizedBox(height: 12),
-            Center(
-              child: Chessboard(
-                size: boardSize,
-                fen: _currentPosition.fen,
-                orientation: _orientation,
-                lastMove: _currentLastMove,
-                settings: ChessboardSettings(
-                  colorScheme: _colorScheme,
-                  pieceAssets: _pieceSet.assets,
-                  dragFeedbackScale: 1.0,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final boardSize = constraints.maxWidth * _boardWidthFactor;
+            final selectorWidth = constraints.maxWidth;
+
+            return Column(
+              children: [
+                const SizedBox(height: 12),
+                _buildMetadata(theme),
+                const SizedBox(height: 12),
+                Center(
+                  child: Chessboard(
+                    size: boardSize,
+                    fen: _currentPosition.fen,
+                    orientation: _orientation,
+                    lastMove: _currentLastMove,
+                    settings: ChessboardSettings(
+                      colorScheme: _colorScheme,
+                      pieceAssets: _pieceSet.assets,
+                      dragFeedbackScale: 1.0,
+                    ),
+                    game: GameData(
+                      playerSide: PlayerSide.both,
+                      sideToMove: _currentPosition.turn,
+                      validMoves: makeLegalMoves(_currentPosition),
+                      isCheck: _currentPosition.isCheck,
+                      promotionMove: _promotionMove,
+                      onMove: _onMove,
+                      onPromotionSelection: _onPromotionSelection,
+                    ),
+                  ),
                 ),
-                game: GameData(
-                  playerSide: PlayerSide.both,
-                  sideToMove: _currentPosition.turn,
-                  validMoves: makeLegalMoves(_currentPosition),
-                  isCheck: _currentPosition.isCheck,
-                  promotionMove: _promotionMove,
-                  onMove: _onMove,
-                  onPromotionSelection: _onPromotionSelection,
-                ),
-              ),
-            ),
-            const SizedBox(height: 2),
-            _buildSelectors(theme),
-            const SizedBox(height: 2),
-            Expanded(child: _buildMoveList(theme)),
-          ],
+                const SizedBox(height: 2),
+                _buildSelectors(theme, selectorWidth),
+                _buildEvalBar(theme),
+                Expanded(child: _buildMoveList(theme)),
+              ],
+            );
+          },
         ),
       ),
       bottomNavigationBar: SafeArea(
@@ -290,8 +472,7 @@ class _BoardScreenState extends State<BoardScreen> {
                 icon: const Icon(Icons.navigate_next),
                 onPressed: isLast
                     ? null
-                    : () =>
-                        _navigate([..._path, _currentNode.children.first]),
+                    : () => _navigate([..._path, _currentNode.children.first]),
               ),
               IconButton(
                 iconSize: 35,
@@ -329,8 +510,7 @@ class _BoardScreenState extends State<BoardScreen> {
     final result = tag('Result');
     final event = tag('Event');
     final round = tag('Round');
-    final players =
-        (white != null && black != null) ? '$white − $black' : null;
+    final players = (white != null && black != null) ? '$white − $black' : null;
     final parts = [event, if (round != null) 'Round $round'].nonNulls.toList();
     final tournament = parts.isEmpty ? null : parts.join(' · ');
 
@@ -366,82 +546,256 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
-  Widget _buildSelectors(ThemeData theme) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildEvalGauge(ThemeData theme) {
+    double whiteRatio = 0.5;
+    int depth = 0;
+
+    if (_evaluations.isNotEmpty) {
+      final eval = _evaluations.first;
+      depth = eval.depth;
+      if (eval.mate != null) {
+        whiteRatio = eval.mate! > 0 ? 1.0 : 0.0;
+      } else if (eval.cp != null) {
+        whiteRatio = (eval.cp!.clamp(-700, 700) + 700) / 1400.0;
+      }
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: 29,
-          height: 29,
-          child: PopupMenuButton<ChessboardColorScheme>(
-            iconSize: 18,
-            padding: EdgeInsets.zero,
-            icon: const Icon(Icons.palette_outlined),
-            tooltip: 'Board colour',
-            position: PopupMenuPosition.under,
-            constraints: const BoxConstraints(maxHeight: 300),
-            onSelected: (scheme) {
-              final label = boardColorSchemes
-                  .firstWhere((e) => e.$2 == scheme)
-                  .$1;
-              boardColorSchemeNotifier.value = label;
-              setState(() => _colorScheme = scheme);
-            },
-            itemBuilder: (_) => [
-              for (final (label, scheme) in boardColorSchemes)
-                PopupMenuItem(
-                  value: scheme,
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 14,
-                        height: 14,
-                        margin: const EdgeInsets.only(right: 10),
-                        decoration: BoxDecoration(
-                          color: scheme.darkSquare,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-                      Text(label),
-                    ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final w = constraints.maxWidth;
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: SizedBox(
+                height: 8,
+                width: w,
+                child: Stack(
+                  children: [
+                    Container(color: Colors.black87),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOut,
+                      width: w * whiteRatio,
+                      color: Colors.white,
+                    ),
+                    Positioned(
+                      left: w / 2 - 0.5,
+                      top: 0,
+                      bottom: 0,
+                      child: Container(width: 1, color: Colors.grey.shade500),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        if (depth > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              'd$depth',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontSize: 9,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSelectors(ThemeData theme, double boardSize) {
+    final fillColor =
+        theme.inputDecorationTheme.fillColor ??
+        theme.colorScheme.surfaceContainerHighest;
+
+    const buttonSize = AppControlSize.compact;
+    const primaryIconSize = AppIconSize.inlineAction;
+    const secondaryIconSize = AppIconSize.smallStatus;
+    const buttonConstraints = BoxConstraints.tightFor(
+      width: buttonSize,
+      height: buttonSize,
+    );
+    const sideSlotWidth = buttonSize * 3 + _selectorGap * 2;
+    const middleInset = sideSlotWidth + _selectorMiddleGap;
+
+    Widget wrapCompactControl(Widget child) {
+      return SizedBox(width: buttonSize, height: buttonSize, child: child);
+    }
+
+    final paletteBtn = wrapCompactControl(
+      PopupMenuButton<ChessboardColorScheme>(
+        iconSize: primaryIconSize,
+        padding: EdgeInsets.zero,
+        icon: const Icon(Icons.palette_outlined),
+        tooltip: 'Board colour',
+        position: PopupMenuPosition.under,
+        constraints: const BoxConstraints(maxHeight: 300),
+        onSelected: (scheme) {
+          final label = boardColorSchemes.firstWhere((e) => e.$2 == scheme).$1;
+          boardColorSchemeNotifier.value = label;
+          setState(() => _colorScheme = scheme);
+        },
+        itemBuilder: (_) => [
+          for (final (label, scheme) in boardColorSchemes)
+            PopupMenuItem(
+              value: scheme,
+              child: Row(
+                children: [
+                  Container(
+                    width: 14,
+                    height: 14,
+                    margin: const EdgeInsets.only(right: 10),
+                    decoration: BoxDecoration(
+                      color: scheme.darkSquare,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                  Text(label),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+
+    final piecesBtn = wrapCompactControl(
+      PopupMenuButton<PieceSet>(
+        iconSize: primaryIconSize,
+        padding: EdgeInsets.zero,
+        icon: const Icon(LucideIcons.chess_king),
+        tooltip: 'Piece set',
+        position: PopupMenuPosition.under,
+        constraints: const BoxConstraints(maxHeight: 300),
+        onSelected: (set) {
+          boardPieceSetNotifier.value = set.name;
+          setState(() => _pieceSet = set);
+        },
+        itemBuilder: (_) => [
+          for (final set in PieceSet.values)
+            PopupMenuItem(value: set, child: Text(set.label)),
+        ],
+      ),
+    );
+
+    final flipBtn = wrapCompactControl(
+      IconButton(
+        iconSize: primaryIconSize,
+        constraints: buttonConstraints,
+        padding: EdgeInsets.zero,
+        icon: const Icon(LucideIcons.rotate_ccw),
+        tooltip: 'Flip board',
+        onPressed: () => setState(
+          () =>
+              _orientation = _orientation == Side.white ? Side.black : Side.white,
+        ),
+      ),
+    );
+
+    final cpuBtn = wrapCompactControl(
+      IconButton(
+        iconSize: primaryIconSize,
+        constraints: buttonConstraints,
+        padding: EdgeInsets.zero,
+        style: IconButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          foregroundColor: _engineEnabled
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurface,
+        ),
+        icon: const Icon(LucideIcons.cpu),
+        tooltip: _engineEnabled ? 'Disable engine' : 'Enable engine',
+        onPressed: _toggleEngine,
+      ),
+    );
+
+    final boardControlsGroup = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        paletteBtn,
+        const SizedBox(width: _selectorGap),
+        piecesBtn,
+        const SizedBox(width: _selectorGap),
+        flipBtn,
+      ],
+    );
+
+    final incrementBtn = wrapCompactControl(
+      IconButton(
+        iconSize: secondaryIconSize,
+        constraints: buttonConstraints,
+        padding: EdgeInsets.zero,
+        icon: const Icon(Icons.add),
+        onPressed: _multiPv < 5 ? () => _setMultiPv(_multiPv + 1) : null,
+      ),
+    );
+
+    final decrementBtn = wrapCompactControl(
+      IconButton(
+        iconSize: secondaryIconSize,
+        constraints: buttonConstraints,
+        padding: EdgeInsets.zero,
+        icon: const Icon(Icons.remove),
+        onPressed: _multiPv > 1 ? () => _setMultiPv(_multiPv - 1) : null,
+      ),
+    );
+
+    final engineControlsGroup = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        cpuBtn,
+        if (_engineEnabled) ...[
+          const SizedBox(width: _selectorGap),
+          incrementBtn,
+          const SizedBox(width: _selectorGap),
+          decrementBtn,
+        ],
+      ],
+    );
+
+    return Center(
+      child: SizedBox(
+        width: boardSize,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: _selectorSidePadding),
+          child: SizedBox(
+            height: buttonSize,
+            child: Stack(
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    width: sideSlotWidth,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: engineControlsGroup,
+                    ),
                   ),
                 ),
-            ],
+                if (_engineEnabled)
+                  Positioned.fill(
+                    left: middleInset,
+                    right: middleInset,
+                    child: Center(child: _buildEvalGauge(theme)),
+                  ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(
+                    width: sideSlotWidth,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: boardControlsGroup,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        SizedBox(
-          width: 29,
-          height: 29,
-          child: PopupMenuButton<PieceSet>(
-            iconSize: 18,
-            padding: EdgeInsets.zero,
-            icon: const Icon(LucideIcons.chess_king),
-            tooltip: 'Piece set',
-            position: PopupMenuPosition.under,
-            constraints: const BoxConstraints(maxHeight: 300),
-            onSelected: (set) {
-              boardPieceSetNotifier.value = set.name;
-              setState(() => _pieceSet = set);
-            },
-            itemBuilder: (_) => [
-              for (final set in PieceSet.values)
-                PopupMenuItem(value: set, child: Text(set.label)),
-            ],
-          ),
-        ),
-        IconButton(
-          iconSize: 18,
-          constraints: BoxConstraints.tightFor(width: 29, height: 29),
-          padding: EdgeInsets.zero,
-          icon: const Icon(LucideIcons.rotate_ccw),
-          tooltip: 'Flip board',
-          onPressed: () => setState(
-            () => _orientation = _orientation == Side.white
-                ? Side.black
-                : Side.white,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -486,7 +840,8 @@ class _BoardScreenState extends State<BoardScreen> {
       if (r < mainRowCount) {
         widgets.add(_buildMainRow(theme, r, mainLine));
       }
-      for (final (node, startPly) in (branches[r] ?? <(PgnNode<PgnNodeData>, int)>[])) {
+      for (final (node, startPly)
+          in (branches[r] ?? <(PgnNode<PgnNodeData>, int)>[])) {
         widgets.add(_buildAllVariations(theme, node, startPly));
       }
     }
@@ -515,11 +870,13 @@ class _BoardScreenState extends State<BoardScreen> {
       moveNumber: rowIndex + 1,
       whiteSan: wNode?.data.san,
       blackSan: bNode?.data.san,
-      isWhiteActive: _onMainLine &&
+      isWhiteActive:
+          _onMainLine &&
           wNode != null &&
           _path.isNotEmpty &&
           _path.last == wNode,
-      isBlackActive: _onMainLine &&
+      isBlackActive:
+          _onMainLine &&
           bNode != null &&
           _path.isNotEmpty &&
           _path.last == bNode,
@@ -536,7 +893,9 @@ class _BoardScreenState extends State<BoardScreen> {
   ) {
     final blocks = <Widget>[];
     for (int k = 1; k < branchNode.children.length; k++) {
-      blocks.add(_buildVariationBlock(theme, branchNode.children[k], startPly, 0));
+      blocks.add(
+        _buildVariationBlock(theme, branchNode.children[k], startPly, 0),
+      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -621,11 +980,20 @@ class _BoardScreenState extends State<BoardScreen> {
 
       final node = nodes[j];
       final isActive = _path.isNotEmpty && _path.last == node;
-      tokens.add(_buildInlineMoveTile(theme, node.data.san, isActive, () => _navigate(_pathTo(node))));
+      tokens.add(
+        _buildInlineMoveTile(
+          theme,
+          node.data.san,
+          isActive,
+          () => _navigate(_pathTo(node)),
+        ),
+      );
     }
 
     return Padding(
-      key: _path.isNotEmpty && nodes.contains(_path.last) ? _currentRowKey : null,
+      key: _path.isNotEmpty && nodes.contains(_path.last)
+          ? _currentRowKey
+          : null,
       padding: EdgeInsets.fromLTRB(8.0 + depth * 20, 3, 8, 3),
       child: Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,
