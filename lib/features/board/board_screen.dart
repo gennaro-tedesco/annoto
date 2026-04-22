@@ -831,7 +831,7 @@ class _BoardScreenState extends State<BoardScreen> {
         constraints: buttonConstraints,
         padding: EdgeInsets.zero,
         icon: const Icon(Icons.add),
-        onPressed: _multiPv < 5 ? () => _setMultiPv(_multiPv + 1) : null,
+        onPressed: _engineEnabled && _multiPv < 5 ? () => _setMultiPv(_multiPv + 1) : null,
       ),
     );
 
@@ -841,7 +841,7 @@ class _BoardScreenState extends State<BoardScreen> {
         constraints: buttonConstraints,
         padding: EdgeInsets.zero,
         icon: const Icon(Icons.remove),
-        onPressed: _multiPv > 1 ? () => _setMultiPv(_multiPv - 1) : null,
+        onPressed: _engineEnabled && _multiPv > 1 ? () => _setMultiPv(_multiPv - 1) : null,
       ),
     );
 
@@ -849,12 +849,10 @@ class _BoardScreenState extends State<BoardScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         cpuBtn,
-        if (_engineEnabled) ...[
-          const SizedBox(width: _selectorGap),
-          incrementBtn,
-          const SizedBox(width: _selectorGap),
-          decrementBtn,
-        ],
+        const SizedBox(width: _selectorGap),
+        incrementBtn,
+        const SizedBox(width: _selectorGap),
+        decrementBtn,
       ],
     );
 
@@ -873,7 +871,7 @@ class _BoardScreenState extends State<BoardScreen> {
                     width: sideSlotWidth,
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: engineControlsGroup,
+                      child: boardControlsGroup,
                     ),
                   ),
                 ),
@@ -889,7 +887,7 @@ class _BoardScreenState extends State<BoardScreen> {
                     width: sideSlotWidth,
                     child: Align(
                       alignment: Alignment.centerRight,
-                      child: boardControlsGroup,
+                      child: engineControlsGroup,
                     ),
                   ),
                 ),
