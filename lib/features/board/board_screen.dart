@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/app/themes.dart';
 import 'package:annoto/models/scoresheet.dart';
+import 'package:annoto/features/settings/engine_settings_screen.dart';
 import 'package:annoto/services/chess_engine_service.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
@@ -55,6 +56,7 @@ class BoardScreen extends StatefulWidget {
 
 class _BoardScreenState extends State<BoardScreen> {
   static const double _boardWidthFactor = 0.9;
+  static const int _pvFoldDepth = 10;
   static const double _selectorGap = 4.0;
   static const double _selectorSidePadding = 8.0;
   static const double _selectorMiddleGap = 8.0;
@@ -76,6 +78,7 @@ class _BoardScreenState extends State<BoardScreen> {
   int _multiPv = 1;
   List<EngineEvaluation> _evaluations = [];
   StreamSubscription<List<EngineEvaluation>>? _analysisSub;
+  final _expandedPvs = <int>{};
 
   static const _pieceSymbols = {
     'N': '♘',
@@ -176,6 +179,7 @@ class _BoardScreenState extends State<BoardScreen> {
       _path = List.of(newPath);
       _promotionMove = null;
       _evaluations = [];
+      _expandedPvs.clear();
     });
     if (_engineEnabled) {
       _debounce?.cancel();
@@ -264,7 +268,10 @@ class _BoardScreenState extends State<BoardScreen> {
   void _startAnalysis() {
     if (!mounted) return;
     _analysisSub?.cancel();
-    setState(() => _evaluations = []);
+    setState(() {
+      _evaluations = [];
+      _expandedPvs.clear();
+    });
     try {
       _analysisSub = _engine
           .startAnalysis(_currentPosition.fen, multiPv: _multiPv)
@@ -320,12 +327,17 @@ class _BoardScreenState extends State<BoardScreen> {
     return widgets;
   }
 
-  Widget _buildEvalLine(ThemeData theme, EngineEvaluation eval) {
+  int _cpFromWhite(int cp) => _currentPosition.turn == Side.white ? cp : -cp;
+
+  Widget _buildEvalLine(ThemeData theme, EngineEvaluation eval, int pvIndex) {
     final String? evalText;
     if (eval.mate != null) {
-      evalText = '#${eval.mate}';
+      final mate = _currentPosition.turn == Side.white
+          ? eval.mate!
+          : -eval.mate!;
+      evalText = '#$mate';
     } else if (eval.cp != null) {
-      final pawns = eval.cp! / 100.0;
+      final pawns = _cpFromWhite(eval.cp!) / 100.0;
       evalText = pawns >= 0
           ? '+${pawns.toStringAsFixed(2)}'
           : pawns.toStringAsFixed(2);
@@ -334,6 +346,11 @@ class _BoardScreenState extends State<BoardScreen> {
     }
 
     final pvTokens = _pvToSan(eval.pv);
+    final isExpanded = _expandedPvs.contains(pvIndex);
+    final canFold = pvTokens.length > _pvFoldDepth;
+    final visibleTokens = canFold && !isExpanded
+        ? pvTokens.sublist(0, _pvFoldDepth)
+        : pvTokens;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -356,7 +373,45 @@ class _BoardScreenState extends State<BoardScreen> {
             child: Wrap(
               spacing: 0,
               runSpacing: 2,
-              children: _buildPvTokens(theme, pvTokens),
+              children: [
+                ..._buildPvTokens(theme, visibleTokens),
+                if (canFold && !isExpanded)
+                  GestureDetector(
+                    onTap: () => setState(() => _expandedPvs.add(pvIndex)),
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '…',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontSize: 11,
+                              color: theme.colorScheme.outline,
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 14,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                if (canFold && isExpanded)
+                  GestureDetector(
+                    onTap: () => setState(() => _expandedPvs.remove(pvIndex)),
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 2),
+                      child: Icon(
+                        Icons.chevron_left,
+                        size: 14,
+                        color: theme.colorScheme.outline,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -364,12 +419,9 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
-  Widget _buildEvalBar(ThemeData theme) {
-    if (!_engineEnabled) return const SizedBox.shrink();
-
+  Widget _buildEvalPanel(ThemeData theme) {
     if (_evaluations.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 8),
+      return const Center(
         child: SizedBox(
           height: 14,
           width: 14,
@@ -378,14 +430,12 @@ class _BoardScreenState extends State<BoardScreen> {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final eval in _evaluations) _buildEvalLine(theme, eval),
-        ],
-      ),
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      children: [
+        for (int i = 0; i < _evaluations.length; i++)
+          _buildEvalLine(theme, _evaluations[i], i),
+      ],
     );
   }
 
@@ -432,10 +482,52 @@ class _BoardScreenState extends State<BoardScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 6),
                 _buildSelectors(theme, selectorWidth),
-                _buildEvalBar(theme),
-                Expanded(child: _buildMoveList(theme)),
+                if (_engineEnabled)
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final half = constraints.maxWidth / 2;
+                        return Stack(
+                          children: [
+                            Positioned(
+                              left: 0,
+                              top: 0,
+                              bottom: 0,
+                              width: half - 0.5,
+                              child: _buildMoveList(theme),
+                            ),
+                            Positioned(
+                              left: half - 0.5,
+                              top: 0,
+                              bottom: 0,
+                              width: 1,
+                              child: ColoredBox(
+                                color: theme.colorScheme.outlineVariant,
+                              ),
+                            ),
+                            Positioned(
+                              left: half + 0.5,
+                              top: 0,
+                              bottom: 0,
+                              width: half - 0.5,
+                              child: _buildEvalPanel(theme),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  )
+                else
+                  Expanded(
+                    child: Center(
+                      child: SizedBox(
+                        width: boardSize,
+                        child: _buildMoveList(theme),
+                      ),
+                    ),
+                  ),
               ],
             );
           },
@@ -554,9 +646,13 @@ class _BoardScreenState extends State<BoardScreen> {
       final eval = _evaluations.first;
       depth = eval.depth;
       if (eval.mate != null) {
-        whiteRatio = eval.mate! > 0 ? 1.0 : 0.0;
+        final mate = _currentPosition.turn == Side.white
+            ? eval.mate!
+            : -eval.mate!;
+        whiteRatio = mate > 0 ? 1.0 : 0.0;
       } else if (eval.cp != null) {
-        whiteRatio = (eval.cp!.clamp(-700, 700) + 700) / 1400.0;
+        final cp = _cpFromWhite(eval.cp!);
+        whiteRatio = (cp.clamp(-700, 700) + 700) / 1400.0;
       }
     }
 
@@ -689,8 +785,9 @@ class _BoardScreenState extends State<BoardScreen> {
         icon: const Icon(LucideIcons.rotate_ccw),
         tooltip: 'Flip board',
         onPressed: () => setState(
-          () =>
-              _orientation = _orientation == Side.white ? Side.black : Side.white,
+          () => _orientation = _orientation == Side.white
+              ? Side.black
+              : Side.white,
         ),
       ),
     );
@@ -709,6 +806,11 @@ class _BoardScreenState extends State<BoardScreen> {
         icon: const Icon(LucideIcons.cpu),
         tooltip: _engineEnabled ? 'Disable engine' : 'Enable engine',
         onPressed: _toggleEngine,
+        onLongPress: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const EngineSettingsScreen(),
+          ),
+        ),
       ),
     );
 
@@ -1044,40 +1146,46 @@ class _BoardScreenState extends State<BoardScreen> {
     required VoidCallback? onWhiteTap,
     required VoidCallback? onBlackTap,
   }) {
-    return Padding(
+    return LayoutBuilder(
       key: key,
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Center(
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 36,
-              child: Text(
-                startsOnBlack ? '$moveNumber...' : '$moveNumber.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.outline,
+      builder: (context, constraints) {
+        // overhead = number(36) + gap(8) + gap(4) + h-padding(8+8) = 64
+        final tileWidth = ((constraints.maxWidth - 64) / 2).clamp(0.0, 96.0);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+          child: Center(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 36,
+                  child: Text(
+                    startsOnBlack ? '$moveNumber...' : '$moveNumber.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
+                    textAlign: TextAlign.right,
+                  ),
                 ),
-                textAlign: TextAlign.right,
-              ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: tileWidth,
+                  child: whiteSan != null && !startsOnBlack
+                      ? _moveTile(theme, whiteSan, isWhiteActive, onWhiteTap!)
+                      : const SizedBox.shrink(),
+                ),
+                const SizedBox(width: 4),
+                SizedBox(
+                  width: tileWidth,
+                  child: blackSan != null
+                      ? _moveTile(theme, blackSan, isBlackActive, onBlackTap!)
+                      : const SizedBox.shrink(),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 96,
-              child: whiteSan != null && !startsOnBlack
-                  ? _moveTile(theme, whiteSan, isWhiteActive, onWhiteTap!)
-                  : const SizedBox.shrink(),
-            ),
-            const SizedBox(width: 4),
-            SizedBox(
-              width: 96,
-              child: blackSan != null
-                  ? _moveTile(theme, blackSan, isBlackActive, onBlackTap!)
-                  : const SizedBox.shrink(),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

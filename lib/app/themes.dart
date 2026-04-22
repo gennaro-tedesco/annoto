@@ -6,6 +6,9 @@ final uiFontScaleNotifier = ValueNotifier<double>(1.0);
 final appFontNotifier = ValueNotifier<AppFontOption>(AppFontOption.system);
 final boardColorSchemeNotifier = ValueNotifier<String>('Brown');
 final boardPieceSetNotifier = ValueNotifier<String>('cburnett');
+final engineThreadsNotifier = ValueNotifier<int>(1);
+final engineHashNotifier = ValueNotifier<int>(16);
+final engineNameNotifier = ValueNotifier<String?>(null);
 
 enum AppThemeOption {
   none,

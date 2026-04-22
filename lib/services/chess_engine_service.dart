@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:annoto/app/themes.dart';
 import 'package:stockfish/stockfish.dart';
 
 class EngineEvaluation {
@@ -23,6 +24,7 @@ class ChessEngineService {
   StreamSubscription<String>? _stdoutSub;
   StreamController<List<EngineEvaluation>>? _controller;
 
+  bool _waitingForUciOk = false;
   bool _waitingForReady = false;
   String _pendingFen = '';
   final _pvMap = <int, EngineEvaluation>{};
@@ -34,11 +36,23 @@ class ChessEngineService {
     while (engine.state.value != StockfishState.ready) {
       await Future.delayed(const Duration(milliseconds: 50));
     }
-    engine.stdin = 'ucinewgame';
     _stdoutSub = engine.stdout.listen(_onStdout);
+    _waitingForUciOk = true;
+    engine.stdin = 'uci';
   }
 
   void _onStdout(String line) {
+    if (_waitingForUciOk) {
+      if (line.startsWith('id name ')) {
+        engineNameNotifier.value = line.substring('id name '.length).trim();
+      }
+      if (line.trim() == 'uciok') {
+        _waitingForUciOk = false;
+        _engine!.stdin = 'ucinewgame';
+      }
+      return;
+    }
+
     if (_waitingForReady) {
       if (line.trim() == 'readyok') {
         _waitingForReady = false;
@@ -109,6 +123,8 @@ class ChessEngineService {
     _waitingForReady = true;
 
     engine.stdin = 'stop';
+    engine.stdin = 'setoption name Threads value ${engineThreadsNotifier.value}';
+    engine.stdin = 'setoption name Hash value ${engineHashNotifier.value}';
     engine.stdin = 'setoption name MultiPV value $multiPv';
     engine.stdin = 'isready';
 

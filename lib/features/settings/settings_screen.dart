@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'about_screen.dart';
 import 'appearance_settings_screen.dart';
+import 'engine_settings_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -72,6 +73,14 @@ class SettingsScreen extends StatelessWidget {
                           _openSubpage(context, const ProviderScreen()),
                     ),
                   ],
+                  const Divider(height: 1),
+                  ListTile(
+                    visualDensity: _tileDensity,
+                    title: const Text('Engine settings'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () =>
+                        _openSubpage(context, const EngineSettingsScreen()),
+                  ),
                 ],
               ),
             ),
