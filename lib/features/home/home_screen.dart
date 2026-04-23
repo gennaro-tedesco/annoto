@@ -222,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen>
         Scaffold(
       key: _scaffoldKey,
       endDrawer: SizedBox(
-        width: MediaQuery.sizeOf(context).width * 0.7,
+        width: (MediaQuery.sizeOf(context).width * 0.7).clamp(0.0, 320.0),
         child: const Drawer(child: SettingsScreen()),
       ),
       appBar: AppBar(

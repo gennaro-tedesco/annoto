@@ -57,6 +57,7 @@ class BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<BoardScreen> {
   static const double _boardWidthFactor = 0.9;
   static const int _pvFoldDepth = 10;
+  static const double _boardSelectorsGap = 6.0;
   static const double _selectorGap = 4.0;
   static const double _selectorSidePadding = 8.0;
   static const double _selectorMiddleGap = 8.0;
@@ -461,34 +462,17 @@ class _BoardScreenState extends State<BoardScreen> {
             final boardSize = constraints.maxWidth * _boardWidthFactor;
             final selectorWidth = constraints.maxWidth;
 
+            if (constraints.maxWidth > constraints.maxHeight) {
+              return _buildLandscapeBody(theme, constraints);
+            }
+
             return Column(
               children: [
                 const SizedBox(height: 12),
                 _buildMetadata(theme),
                 const SizedBox(height: 12),
-                Center(
-                  child: Chessboard(
-                    size: boardSize,
-                    fen: _currentPosition.fen,
-                    orientation: _orientation,
-                    lastMove: _currentLastMove,
-                    settings: ChessboardSettings(
-                      colorScheme: _colorScheme,
-                      pieceAssets: _pieceSet.assets,
-                      dragFeedbackScale: 1.0,
-                    ),
-                    game: GameData(
-                      playerSide: PlayerSide.both,
-                      sideToMove: _currentPosition.turn,
-                      validMoves: makeLegalMoves(_currentPosition),
-                      isCheck: _currentPosition.isCheck,
-                      promotionMove: _promotionMove,
-                      onMove: _onMove,
-                      onPromotionSelection: _onPromotionSelection,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
+                Center(child: _buildChessboard(boardSize)),
+                const SizedBox(height: _boardSelectorsGap),
                 _buildSelectors(theme, selectorWidth),
                 if (_engineEnabled)
                   Expanded(
@@ -594,6 +578,103 @@ class _BoardScreenState extends State<BoardScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildChessboard(double boardSize) {
+    return Chessboard(
+      size: boardSize,
+      fen: _currentPosition.fen,
+      orientation: _orientation,
+      lastMove: _currentLastMove,
+      settings: ChessboardSettings(
+        colorScheme: _colorScheme,
+        pieceAssets: _pieceSet.assets,
+        dragFeedbackScale: 1.0,
+      ),
+      game: GameData(
+        playerSide: PlayerSide.both,
+        sideToMove: _currentPosition.turn,
+        validMoves: makeLegalMoves(_currentPosition),
+        isCheck: _currentPosition.isCheck,
+        promotionMove: _promotionMove,
+        onMove: _onMove,
+        onPromotionSelection: _onPromotionSelection,
+      ),
+    );
+  }
+
+  Widget _buildLandscapeBody(ThemeData theme, BoxConstraints constraints) {
+    final halfWidth = constraints.maxWidth / 2;
+    const columnOverhead = _boardSelectorsGap + AppControlSize.compact;
+    final boardSize = ((constraints.maxHeight - columnOverhead) * _boardWidthFactor)
+        .clamp(0.0, halfWidth - _selectorSidePadding * 2);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: halfWidth,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Center(child: _buildChessboard(boardSize)),
+              const SizedBox(height: _boardSelectorsGap),
+              _buildSelectors(theme, halfWidth),
+            ],
+          ),
+        ),
+        SizedBox(
+          width: 1,
+          child: ColoredBox(color: theme.colorScheme.outlineVariant),
+        ),
+        Expanded(
+          child: Column(
+            children: [
+              const SizedBox(height: 8),
+              _buildMetadata(theme),
+              const SizedBox(height: 8),
+              if (_engineEnabled)
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final half = constraints.maxWidth / 2;
+                      return Stack(
+                        children: [
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: half - 0.5,
+                            child: _buildMoveList(theme),
+                          ),
+                          Positioned(
+                            left: half - 0.5,
+                            top: 0,
+                            bottom: 0,
+                            width: 1,
+                            child: ColoredBox(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
+                          ),
+                          Positioned(
+                            left: half + 0.5,
+                            top: 0,
+                            bottom: 0,
+                            width: half - 0.5,
+                            child: _buildEvalPanel(theme),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                )
+              else
+                Expanded(child: _buildMoveList(theme)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
