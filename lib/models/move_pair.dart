@@ -49,26 +49,21 @@ List<MovePair> parsePgn(
   for (final tag in kPgnTagOrder) {
     headerControllers[tag] = TextEditingController(text: headers[tag] ?? '?');
   }
-  final movesText =
-      _movesBlockRegex.firstMatch(pgn)?.group(1)?.trim() ?? pgn;
+  final movesText = _movesBlockRegex.firstMatch(pgn)?.group(1)?.trim() ?? pgn;
   return parsePgnMoves(movesText);
 }
 
 List<MovePair> parsePgnMoves(String text) {
-  return pgnMoveRegex
-      .allMatches(text)
-      .map((m) {
-        final rawBlack = m.group(3);
-        return MovePair(
-          number: int.parse(m.group(1)!),
-          white: m.group(2) ?? '',
-          black:
-              rawBlack != null && _kResultTokens.contains(rawBlack)
-                  ? ''
-                  : rawBlack ?? '',
-        );
-      })
-      .toList();
+  return pgnMoveRegex.allMatches(text).map((m) {
+    final rawBlack = m.group(3);
+    return MovePair(
+      number: int.parse(m.group(1)!),
+      white: m.group(2) ?? '',
+      black: rawBlack != null && _kResultTokens.contains(rawBlack)
+          ? ''
+          : rawBlack ?? '',
+    );
+  }).toList();
 }
 
 String serialisePgn(

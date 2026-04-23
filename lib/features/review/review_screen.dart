@@ -219,7 +219,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
               decoration: InputDecoration(
                 hintText: 'White',
                 hintStyle: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.5,
+                  ),
                 ),
                 isDense: true,
                 constraints: BoxConstraints(
@@ -254,7 +256,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
               decoration: InputDecoration(
                 hintText: 'Black',
                 hintStyle: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(
+                    alpha: 0.5,
+                  ),
                 ),
                 isDense: true,
                 constraints: BoxConstraints(

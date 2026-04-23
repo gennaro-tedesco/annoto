@@ -141,9 +141,12 @@ class _BoardScreenState extends State<BoardScreen> {
         (s) => s.name == boardPieceSetNotifier.value,
         orElse: () => PieceSet.cburnett,
       );
-      _engine.init().then((_) {
-        if (mounted) setState(() => _engineReady = true);
-      }).catchError((_) {});
+      _engine
+          .init()
+          .then((_) {
+            if (mounted) setState(() => _engineReady = true);
+          })
+          .catchError((_) {});
       _initialised = true;
     }
   }
@@ -607,8 +610,11 @@ class _BoardScreenState extends State<BoardScreen> {
   Widget _buildLandscapeBody(ThemeData theme, BoxConstraints constraints) {
     final halfWidth = constraints.maxWidth / 2;
     const columnOverhead = _boardSelectorsGap + AppControlSize.compact;
-    final boardSize = ((constraints.maxHeight - columnOverhead) * _boardWidthFactor)
-        .clamp(0.0, halfWidth - _selectorSidePadding * 2);
+    final boardSize =
+        ((constraints.maxHeight - columnOverhead) * _boardWidthFactor).clamp(
+          0.0,
+          halfWidth - _selectorSidePadding * 2,
+        );
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -889,11 +895,9 @@ class _BoardScreenState extends State<BoardScreen> {
         icon: const Icon(LucideIcons.cpu),
         tooltip: _engineEnabled ? 'Disable engine' : 'Enable engine',
         onPressed: _toggleEngine,
-        onLongPress: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const EngineSettingsScreen(),
-          ),
-        ),
+        onLongPress: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const EngineSettingsScreen())),
       ),
     );
 
@@ -914,7 +918,9 @@ class _BoardScreenState extends State<BoardScreen> {
         constraints: buttonConstraints,
         padding: EdgeInsets.zero,
         icon: const Icon(Icons.add),
-        onPressed: _engineEnabled && _multiPv < 5 ? () => _setMultiPv(_multiPv + 1) : null,
+        onPressed: _engineEnabled && _multiPv < 5
+            ? () => _setMultiPv(_multiPv + 1)
+            : null,
       ),
     );
 
@@ -924,7 +930,9 @@ class _BoardScreenState extends State<BoardScreen> {
         constraints: buttonConstraints,
         padding: EdgeInsets.zero,
         icon: const Icon(Icons.remove),
-        onPressed: _engineEnabled && _multiPv > 1 ? () => _setMultiPv(_multiPv - 1) : null,
+        onPressed: _engineEnabled && _multiPv > 1
+            ? () => _setMultiPv(_multiPv - 1)
+            : null,
       ),
     );
 

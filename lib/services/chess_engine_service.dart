@@ -128,7 +128,8 @@ class ChessEngineService {
     _waitingForReady = true;
 
     engine.stdin = 'stop';
-    engine.stdin = 'setoption name Threads value ${engineThreadsNotifier.value}';
+    engine.stdin =
+        'setoption name Threads value ${engineThreadsNotifier.value}';
     engine.stdin = 'setoption name Hash value ${engineHashNotifier.value}';
     engine.stdin = 'setoption name MultiPV value $multiPv';
     engine.stdin = 'isready';

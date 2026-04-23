@@ -220,47 +220,47 @@ class _HomeScreenState extends State<HomeScreen>
     return Stack(
       children: [
         Scaffold(
-      key: _scaffoldKey,
-      endDrawer: SizedBox(
-        width: (MediaQuery.sizeOf(context).width * 0.7).clamp(0.0, 320.0),
-        child: const Drawer(child: SettingsScreen()),
-      ),
-      appBar: AppBar(
-        centerTitle: true,
-        title: Image.asset('images/logo.png', height: 50),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
-            onPressed: _openSettings,
+          key: _scaffoldKey,
+          endDrawer: SizedBox(
+            width: (MediaQuery.sizeOf(context).width * 0.7).clamp(0.0, 320.0),
+            child: const Drawer(child: SettingsScreen()),
           ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Column(
+          appBar: AppBar(
+            centerTitle: true,
+            title: Image.asset('images/logo.png', height: 50),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                tooltip: 'Settings',
+                onPressed: _openSettings,
+              ),
+              const SizedBox(width: 4),
+            ],
+          ),
+          body: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Expanded(child: _buildHomeTab2(context)),
-              SizedBox(
-                height:
+              Column(
+                children: [
+                  Expanded(child: _buildHomeTab2(context)),
+                  SizedBox(
+                    height:
+                        MediaQuery.of(context).padding.bottom +
+                        _homeListBottomClearance,
+                  ),
+                ],
+              ),
+              Positioned(
+                left: _bottomOverlaySideInset,
+                right: _bottomOverlaySideInset,
+                bottom:
                     MediaQuery.of(context).padding.bottom +
-                    _homeListBottomClearance,
+                    _bottomOverlayBottomInset,
+                height: _fabOverlayHeight,
+                child: _buildBottomOverlay(context, overlayWidth, fillColor),
               ),
             ],
           ),
-          Positioned(
-            left: _bottomOverlaySideInset,
-            right: _bottomOverlaySideInset,
-            bottom:
-                MediaQuery.of(context).padding.bottom +
-                _bottomOverlayBottomInset,
-            height: _fabOverlayHeight,
-            child: _buildBottomOverlay(context, overlayWidth, fillColor),
-          ),
-        ],
-      ),
         ),
         if (_filtersOpen)
           Positioned.fill(
@@ -702,8 +702,7 @@ class _HomeScreenState extends State<HomeScreen>
   static final _movesBlockRegex = RegExp(r'\n\n(.+)', dotAll: true);
 
   bool _hasInvalidMoves(String pgn) {
-    final movesText =
-        _movesBlockRegex.firstMatch(pgn)?.group(1)?.trim() ?? '';
+    final movesText = _movesBlockRegex.firstMatch(pgn)?.group(1)?.trim() ?? '';
     if (movesText.isEmpty) return false;
     final sans = <String>[];
     for (final m in pgnMoveRegex.allMatches(movesText)) {
