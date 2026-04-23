@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/app/themes.dart';
+import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/features/settings/engine_settings_screen.dart';
 import 'package:annoto/services/chess_engine_service.dart';
@@ -61,8 +62,15 @@ class _BoardScreenState extends State<BoardScreen> {
   static const double _selectorGap = 4.0;
   static const double _selectorSidePadding = 8.0;
   static const double _selectorMiddleGap = 8.0;
+  static const double _chapterDrawerWidthFactor = 0.7;
+  static const double _chapterDrawerMaxWidth = 320.0;
 
-  late final PgnGame<PgnNodeData> _game;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final TextEditingController _chapterSearchController =
+      TextEditingController();
+  List<String> _games = [];
+  int _currentChapter = 0;
+  late PgnGame<PgnNodeData> _game;
   final _positionMap = <PgnChildNode<PgnNodeData>, Position>{};
   final _moveMap = <PgnChildNode<PgnNodeData>, Move>{};
   final _parentMap = <PgnChildNode<PgnNodeData>, PgnNode<PgnNodeData>>{};
@@ -131,11 +139,10 @@ class _BoardScreenState extends State<BoardScreen> {
     if (!_initialised) {
       final scoresheet =
           ModalRoute.of(context)!.settings.arguments as Scoresheet;
-      _game = PgnGame.parsePgn(
-        scoresheet.pgn,
-        initHeaders: PgnGame.emptyHeaders,
-      );
-      _buildMaps(_game.moves, Chess.initial);
+      _games = splitPgnGames(scoresheet.pgn);
+      if (_games.isEmpty) _games = [scoresheet.pgn];
+      _game = PgnGame.parsePgn(_games[0], initHeaders: PgnGame.emptyHeaders);
+      _buildMaps(_game.moves, PgnGame.startingPosition(_game.headers));
       _colorScheme = _schemeByLabel(boardColorSchemeNotifier.value);
       _pieceSet = PieceSet.values.firstWhere(
         (s) => s.name == boardPieceSetNotifier.value,
@@ -153,6 +160,7 @@ class _BoardScreenState extends State<BoardScreen> {
 
   @override
   void dispose() {
+    _chapterSearchController.dispose();
     _debounce?.cancel();
     _analysisSub?.cancel();
     _engine.dispose();
@@ -169,6 +177,108 @@ class _BoardScreenState extends State<BoardScreen> {
       _parentMap[child] = node;
       _buildMaps(child, newPos);
     }
+  }
+
+  void _loadChapter(int index) {
+    if (index == _currentChapter) return;
+    _chapterSearchController.clear();
+    _analysisSub?.cancel();
+    _analysisSub = null;
+    _engine.stopAnalysis();
+    _positionMap.clear();
+    _moveMap.clear();
+    _parentMap.clear();
+    final newGame = PgnGame.parsePgn(
+      _games[index],
+      initHeaders: PgnGame.emptyHeaders,
+    );
+    _buildMaps(newGame.moves, PgnGame.startingPosition(newGame.headers));
+    setState(() {
+      _currentChapter = index;
+      _game = newGame;
+      _path = [];
+      _promotionMove = null;
+      _evaluations = [];
+      _expandedPvs.clear();
+      _engineEnabled = false;
+    });
+  }
+
+  void _openChapterDrawer() {
+    _chapterSearchController.clear();
+    _scaffoldKey.currentState?.openDrawer();
+  }
+
+  Widget _buildChapterDrawer(ThemeData theme) {
+    final query = _chapterSearchController.text.trim().toLowerCase();
+    final chapterEntries = _games.asMap().entries.where((entry) {
+      if (query.isEmpty) return true;
+      return _chapterLabel(
+        entry.value,
+        entry.key,
+      ).toLowerCase().contains(query);
+    }).toList();
+
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.menu_book_outlined,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text('Chapters', style: theme.textTheme.titleMedium),
+                ],
+              ),
+            ),
+            Divider(color: theme.colorScheme.outlineVariant, height: 1),
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: chapterEntries.length,
+                separatorBuilder: (_, _) =>
+                    Divider(color: theme.colorScheme.outlineVariant, height: 1),
+                itemBuilder: (context, index) {
+                  final entry = chapterEntries[index];
+                  final chapterIndex = entry.key;
+                  final selected = chapterIndex == _currentChapter;
+                  return ListTile(
+                    selected: selected,
+                    title: Text(_chapterLabel(entry.value, chapterIndex)),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _loadChapter(chapterIndex);
+                    },
+                  );
+                },
+              ),
+            ),
+            Divider(color: theme.colorScheme.outlineVariant, height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _chapterSearchController,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  hintText: 'Search chapter',
+                  prefixIcon: Icon(Icons.search),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _chapterLabel(String pgn, int index) {
+    return chapterLabelForPgn(pgn, index);
   }
 
   List<PgnChildNode<PgnNodeData>> _pathTo(PgnChildNode<PgnNodeData> target) {
@@ -459,6 +569,15 @@ class _BoardScreenState extends State<BoardScreen> {
     final isLast = _currentNode.children.isEmpty;
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _games.length > 1
+          ? SizedBox(
+              width:
+                  (MediaQuery.sizeOf(context).width * _chapterDrawerWidthFactor)
+                      .clamp(0.0, _chapterDrawerMaxWidth),
+              child: _buildChapterDrawer(theme),
+            )
+          : null,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -699,7 +818,8 @@ class _BoardScreenState extends State<BoardScreen> {
     final parts = [event, if (round != null) 'Round $round'].nonNulls.toList();
     final tournament = parts.isEmpty ? null : parts.join(' · ');
 
-    return Column(
+    final metadataColumn = Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         if (players != null)
           Text(
@@ -707,7 +827,7 @@ class _BoardScreenState extends State<BoardScreen> {
             style: theme.textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
-        if (result != null)
+        if (players != null && result != null)
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(
@@ -727,6 +847,34 @@ class _BoardScreenState extends State<BoardScreen> {
               textAlign: TextAlign.center,
             ),
           ),
+      ],
+    );
+
+    if (_games.length <= 1) return metadataColumn;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 48,
+          child: IconButton(
+            tooltip: 'Select chapter',
+            padding: EdgeInsets.zero,
+            onPressed: _openChapterDrawer,
+            icon: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.menu_book_outlined, size: 18),
+                Text(
+                  '${_currentChapter + 1}/${_games.length}',
+                  style: theme.textTheme.labelSmall?.copyWith(fontSize: 9),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(child: Center(child: metadataColumn)),
+        const SizedBox(width: 48),
       ],
     );
   }

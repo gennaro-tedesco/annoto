@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:annoto/app/ai_models.dart';
 import 'package:annoto/app/app_state.dart';
@@ -13,6 +14,7 @@ import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/services/pgn_validator.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:image_picker/image_picker.dart';
@@ -52,6 +54,11 @@ class _HomeScreenState extends State<HomeScreen>
   static const _swipeRevealPadding = 20.0;
   static const _invalidIndicatorSize = 10.0;
   static const _invalidIndicatorInset = 8.0;
+  static const _collectionStackOffset = 6.0;
+  static const _collectionStackLayerCount = 2;
+  static const _collectionChipIconSize = 16.0;
+  static const _collectionChipGap = 6.0;
+  static const _collectionChipSpacing = 12.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<Scoresheet> _scoresheets = [];
@@ -144,6 +151,14 @@ class _HomeScreenState extends State<HomeScreen>
                 if (image != null && mounted) await _processScoresheet(image);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.description_outlined),
+              title: const Text('Import PGN'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                await _importPgn();
+              },
+            ),
           ],
         ),
       ),
@@ -207,6 +222,43 @@ class _HomeScreenState extends State<HomeScreen>
       context,
     ).pushNamed(ReviewScreen.routeName, arguments: pgn);
     await _loadScoresheets();
+  }
+
+  Future<void> _importPgn() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pgn'],
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.single;
+    String content;
+    try {
+      if (file.path != null) {
+        content = await File(file.path!).readAsString();
+      } else if (file.bytes != null) {
+        content = utf8.decode(file.bytes!);
+      } else {
+        if (mounted) NotificationService.showError('Failed to read PGN file.');
+        return;
+      }
+    } catch (_) {
+      if (mounted) NotificationService.showError('Failed to read PGN file.');
+      return;
+    }
+    final games = splitPgnGames(content);
+    if (games.isEmpty) {
+      if (mounted)
+        NotificationService.showError('No valid games found in PGN file.');
+      return;
+    }
+    try {
+      await scoresheetRepository.save(content.trim(), filename: file.name);
+    } catch (_) {
+      if (mounted) NotificationService.showError('Failed to save PGN.');
+      return;
+    }
+    if (mounted) await _loadScoresheets();
   }
 
   @override
@@ -612,76 +664,138 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildScoresheetCard(BuildContext context, Scoresheet scoresheet) {
     final theme = Theme.of(context);
+    final games = splitPgnGames(scoresheet.pgn);
+    final isCollection = games.length > 1;
     final tags = _parsePgnTags(scoresheet.pgn);
-    final players = _joinNonEmpty([
-      _joinNonEmpty([tags['White'], tags['Black']], ' - '),
-      tags['Result'],
-    ], '\t\t\t');
-    final eventRound = _joinNonEmpty([
+    final filenameLabel = scoresheet.filename.toLowerCase().endsWith('.pgn')
+        ? scoresheet.filename.substring(0, scoresheet.filename.length - 4)
+        : scoresheet.filename;
+    final playersLabel = _joinNonEmpty([tags['White'], tags['Black']], ' - ');
+    final resultLabel = tags['Result'];
+    final title = isCollection
+        ? filenameLabel
+        : _joinNonEmpty([
+            playersLabel,
+            if (playersLabel != null) resultLabel,
+          ], '\t\t\t');
+    final baseEventRound = _joinNonEmpty([
       tags['Event'],
       tags['Round'],
     ], ' - Game ');
+    final eventRound = isCollection ? null : baseEventRound;
     final invalid = _hasInvalidMoves(scoresheet.pgn);
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Card(
-          margin: EdgeInsets.zero,
-          child: InkWell(
-            onTap: () {
-              if (!invalid) {
-                Navigator.of(
-                  context,
-                ).pushNamed(BoardScreen.routeName, arguments: scoresheet);
-              } else {
-                NotificationService.showError('Invalid PGN');
-              }
-            },
-            onLongPress: () async {
-              final updated = await Navigator.of(
-                context,
-              ).pushNamed(GameDetailScreen.routeName, arguments: scoresheet);
-              if (updated == true && mounted) {
-                await _loadScoresheets();
-              }
-            },
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(_cardInternalPadding),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (players != null)
-                          Text(players, style: theme.textTheme.bodyMedium),
-                        if (players != null && eventRound != null)
-                          const SizedBox(height: 4),
-                        if (eventRound != null)
-                          Text(eventRound, style: theme.textTheme.bodySmall),
-                      ],
-                    ),
+    final collectionStackInset =
+        _collectionStackOffset * _collectionStackLayerCount;
+    final collectionLayerColor = theme.colorScheme.surfaceContainerHighest
+        .withValues(alpha: 0.55);
+    final collectionChipColor = theme.colorScheme.primary;
+    return Padding(
+      padding: EdgeInsets.only(
+        right: isCollection ? collectionStackInset : 0,
+        bottom: isCollection ? collectionStackInset : 0,
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          if (isCollection)
+            for (int layer = _collectionStackLayerCount; layer >= 1; layer--)
+              Positioned.fill(
+                child: Transform.translate(
+                  offset: Offset(
+                    _collectionStackOffset * layer,
+                    _collectionStackOffset * layer,
                   ),
-                ],
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    color: collectionLayerColor,
+                  ),
+                ),
+              ),
+          Card(
+            margin: EdgeInsets.zero,
+            child: InkWell(
+              onTap: () {
+                if (!invalid) {
+                  Navigator.of(
+                    context,
+                  ).pushNamed(BoardScreen.routeName, arguments: scoresheet);
+                } else {
+                  NotificationService.showError('Invalid PGN');
+                }
+              },
+              onLongPress: () async {
+                final updated = await Navigator.of(
+                  context,
+                ).pushNamed(GameDetailScreen.routeName, arguments: scoresheet);
+                if (updated == true && mounted) {
+                  await _loadScoresheets();
+                }
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(_cardInternalPadding),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (title != null)
+                            Text(title, style: theme.textTheme.bodyMedium),
+                          if (title != null && eventRound != null)
+                            const SizedBox(height: 4),
+                          if (eventRound != null)
+                            Text(eventRound, style: theme.textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    if (isCollection) ...[
+                      const SizedBox(width: _collectionChipSpacing),
+                      Chip(
+                        label: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${games.length}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: collectionChipColor,
+                              ),
+                            ),
+                            const SizedBox(width: _collectionChipGap),
+                            Icon(
+                              Icons.menu_book_outlined,
+                              size: _collectionChipIconSize,
+                              color: collectionChipColor,
+                            ),
+                          ],
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: _collectionChipGap,
+                        ),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        if (invalid)
-          Positioned(
-            top: _invalidIndicatorInset,
-            right: _invalidIndicatorInset,
-            child: Container(
-              width: _invalidIndicatorSize,
-              height: _invalidIndicatorSize,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.error,
-                shape: BoxShape.circle,
+          if (invalid)
+            Positioned(
+              top: _invalidIndicatorInset,
+              right: _invalidIndicatorInset,
+              child: Container(
+                width: _invalidIndicatorSize,
+                height: _invalidIndicatorSize,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.error,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -699,33 +813,13 @@ class _HomeScreenState extends State<HomeScreen>
     _ => 'Extraction failed. Try again.',
   };
 
-  static final _movesBlockRegex = RegExp(r'\n\n(.+)', dotAll: true);
-
   bool _hasInvalidMoves(String pgn) {
-    final movesText = _movesBlockRegex.firstMatch(pgn)?.group(1)?.trim() ?? '';
-    if (movesText.isEmpty) return false;
-    final sans = <String>[];
-    for (final m in pgnMoveRegex.allMatches(movesText)) {
-      sans.add(m.group(2) ?? '');
-      final black = m.group(3);
-      if (black != null) sans.add(black);
-    }
-    while (sans.isNotEmpty && sans.last.isEmpty) {
-      sans.removeLast();
-    }
-    if (sans.isEmpty) return false;
-    return validateMoves(sans).any((v) => !v);
+    return hasInvalidPgnMoves(pgn);
   }
 
   Map<String, String> _parsePgnTags(String pgn) {
-    final tags = <String, String>{};
-    final exp = RegExp(r'^\[(\w+)\s+"(.*)"\]$', multiLine: true);
-    for (final match in exp.allMatches(pgn)) {
-      final value = match.group(2)?.trim();
-      if (value == null || value.isEmpty || value == '?') continue;
-      tags[match.group(1)!] = value;
-    }
-    return tags;
+    final firstGame = splitPgnGames(pgn).firstOrNull ?? pgn;
+    return parsePgnTags(firstGame);
   }
 
   _FilterData _buildFilterData() {

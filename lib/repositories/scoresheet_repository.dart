@@ -52,18 +52,18 @@ class ScoresheetRepository {
     return scoresheets;
   }
 
-  Future<Scoresheet> save(String pgn) async {
+  Future<Scoresheet> save(String pgn, {String? filename}) async {
     final dir = await _dir();
     final id = _uuid.v4();
     final now = DateTime.now();
-    final filename = _formatFilename(now);
+    final storedFilename = filename ?? _formatFilename(now);
 
     await File('${dir.path}/$id.pgn').writeAsString(pgn);
 
     final index = await _readIndex();
     final entry = Scoresheet(
       id: id,
-      filename: filename,
+      filename: storedFilename,
       createdAt: now,
       pgn: pgn,
     );

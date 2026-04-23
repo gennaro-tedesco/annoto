@@ -17,6 +17,8 @@ class GameDetailScreen extends StatefulWidget {
 }
 
 class _GameDetailScreenState extends State<GameDetailScreen> {
+  List<String> _games = [];
+  int _currentChapter = 0;
   final Map<String, TextEditingController> _headerControllers = {};
   List<MovePair> _moves = [];
   List<bool> _plyValidity = [];
@@ -24,6 +26,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   bool _headersExpanded = true;
   bool _movesExpanded = true;
   late Scoresheet _scoresheet;
+  String _initialFullPgn = '';
   String _initialPgn = '';
   MovePair? _editingMove;
 
@@ -34,8 +37,11 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     super.didChangeDependencies();
     if (!_initialised) {
       _scoresheet = ModalRoute.of(context)!.settings.arguments as Scoresheet;
-      _parsePgn(_scoresheet.pgn);
+      _games = splitPgnGames(_scoresheet.pgn);
+      if (_games.isEmpty) _games = [_scoresheet.pgn];
+      _parsePgn(_games[0]);
       _runValidation();
+      _initialFullPgn = _scoresheet.pgn.trim();
       _initialPgn = serialisePgn(_headerControllers, _moves);
       _initialised = true;
     }
@@ -64,6 +70,16 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   }
 
   bool get _isDirty => serialisePgn(_headerControllers, _moves) != _initialPgn;
+
+  String get _currentPgn => serialisePgn(_headerControllers, _moves);
+
+  String get _fullPgn {
+    final games = List<String>.of(_games);
+    games[_currentChapter] = _currentPgn;
+    return games.length > 1 ? games.join('\n\n') : games.first;
+  }
+
+  bool get _hasPendingChanges => _fullPgn != _initialFullPgn;
 
   void _parsePgn(String pgn) {
     _moves = parsePgn(pgn, _headerControllers);
@@ -114,17 +130,44 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     _runValidation();
   }
 
+  void _loadChapter(int index) {
+    if (index == _currentChapter) return;
+    if (_isDirty) {
+      _games[_currentChapter] = _currentPgn;
+    }
+    for (final c in _headerControllers.values) {
+      c.dispose();
+    }
+    _headerControllers.clear();
+    for (final m in _moves) {
+      m.dispose();
+    }
+    _moves.clear();
+    _parsePgn(_games[index]);
+    _runValidation();
+    setState(() {
+      _currentChapter = index;
+      _initialPgn = serialisePgn(_headerControllers, _moves);
+      _editingMove = null;
+    });
+  }
+
+  String _chapterLabel(int index) {
+    return chapterLabelForPgn(_games[index], index);
+  }
+
   Future<void> _share() async {
     final path = await scoresheetRepository.getFilePath(_scoresheet.id);
     await Share.shareXFiles([XFile(path, mimeType: 'application/x-chess-pgn')]);
   }
 
   Future<void> _save() async {
-    if (!_isDirty) return;
+    if (!_hasPendingChanges) return;
     _runValidation();
-    final pgn = serialisePgn(_headerControllers, _moves);
+    final fullPgn = _fullPgn;
+    _games[_currentChapter] = _currentPgn;
     try {
-      await scoresheetRepository.update(_scoresheet.id, pgn);
+      await scoresheetRepository.update(_scoresheet.id, fullPgn);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (_) {
@@ -151,6 +194,33 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   vertical: 8,
                 ),
                 children: [
+                  if (_games.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: PopupMenuButton<int>(
+                        tooltip: 'Select game',
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.menu_book_outlined, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Game ${_currentChapter + 1} / ${_games.length}',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const Icon(Icons.expand_more, size: 16),
+                          ],
+                        ),
+                        onSelected: _loadChapter,
+                        itemBuilder: (_) => [
+                          for (int i = 0; i < _games.length; i++)
+                            PopupMenuItem(
+                              value: i,
+                              child: Text(_chapterLabel(i)),
+                            ),
+                        ],
+                      ),
+                    ),
                   SectionToggle(
                     title: 'Headers',
                     expanded: _headersExpanded,
@@ -247,7 +317,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   ),
                   const Spacer(),
                   IconButton.filled(
-                    onPressed: _isDirty ? _save : null,
+                    onPressed: _hasPendingChanges ? _save : null,
                     icon: const Icon(Icons.check, size: 20),
                   ),
                 ],
