@@ -38,12 +38,13 @@ class SessionState {
 }
 
 class AppState extends ChangeNotifier {
-  AppState() {
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen(
+  AppState(SupabaseClient client) : _client = client {
+    _authSubscription = _client.auth.onAuthStateChange.listen(
       _onAuthStateChange,
     );
   }
 
+  final SupabaseClient _client;
   late final StreamSubscription<AuthState> _authSubscription;
 
   AiProvider _selectedProvider = AiProvider.gemini;
@@ -65,14 +66,11 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> signIn(String email, String password) async {
-    await Supabase.instance.client.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
+    await _client.auth.signInWithPassword(email: email, password: password);
   }
 
   Future<void> signOut() async {
-    await Supabase.instance.client.auth.signOut();
+    await _client.auth.signOut();
   }
 
   Future<void> _onAuthStateChange(AuthState data) async {
@@ -90,12 +88,16 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadProfile(String userId) async {
-    final data = await Supabase.instance.client
-        .from('profiles')
-        .select('email')
-        .eq('id', userId)
-        .single();
-    _session = SessionState(email: data['email'] as String?);
+    try {
+      final data = await _client
+          .from('profiles')
+          .select('email')
+          .eq('id', userId)
+          .single();
+      _session = SessionState(email: data['email'] as String?);
+    } catch (_) {
+      _session = const SessionState();
+    }
     notifyListeners();
   }
 }

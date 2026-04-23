@@ -1,30 +1,11 @@
+import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/services/pgn_validator.dart';
+import 'package:annoto/widgets/section_toggle.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
-
-class _MovePair {
-  _MovePair({required this.number, String white = '', String black = ''})
-    : white = TextEditingController(text: white),
-      black = TextEditingController(text: black),
-      whiteFocus = FocusNode(),
-      blackFocus = FocusNode();
-
-  int number;
-  final TextEditingController white;
-  final TextEditingController black;
-  final FocusNode whiteFocus;
-  final FocusNode blackFocus;
-
-  void dispose() {
-    white.dispose();
-    black.dispose();
-    whiteFocus.dispose();
-    blackFocus.dispose();
-  }
-}
 
 class GameDetailScreen extends StatefulWidget {
   const GameDetailScreen({super.key});
@@ -36,25 +17,15 @@ class GameDetailScreen extends StatefulWidget {
 }
 
 class _GameDetailScreenState extends State<GameDetailScreen> {
-  static const _tagOrder = [
-    'White',
-    'Black',
-    'Event',
-    'Site',
-    'Date',
-    'Round',
-    'Result',
-  ];
-
   final Map<String, TextEditingController> _headerControllers = {};
-  List<_MovePair> _moves = [];
+  List<MovePair> _moves = [];
   List<bool> _plyValidity = [];
   bool _initialised = false;
   bool _headersExpanded = true;
   bool _movesExpanded = true;
   late Scoresheet _scoresheet;
   String _initialPgn = '';
-  _MovePair? _editingMove;
+  MovePair? _editingMove;
 
   static const double _inputCardsHeight = 30.0;
 
@@ -65,7 +36,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       _scoresheet = ModalRoute.of(context)!.settings.arguments as Scoresheet;
       _parsePgn(_scoresheet.pgn);
       _runValidation();
-      _initialPgn = _serialisePgn();
+      _initialPgn = serialisePgn(_headerControllers, _moves);
       _initialised = true;
     }
   }
@@ -81,7 +52,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     super.dispose();
   }
 
-  void _attachFocusListeners(_MovePair move) {
+  void _attachFocusListeners(MovePair move) {
     void listener() {
       if (!move.whiteFocus.hasFocus && !move.blackFocus.hasFocus) {
         setState(() => _editingMove = null);
@@ -92,57 +63,23 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     move.blackFocus.addListener(listener);
   }
 
-  bool get _isDirty => _serialisePgn() != _initialPgn;
+  bool get _isDirty => serialisePgn(_headerControllers, _moves) != _initialPgn;
 
   void _parsePgn(String pgn) {
-    final headerRegex = RegExp(r'\[(\w+)\s+"([^"]*)"\]');
-    final headers = <String, String>{};
-    for (final match in headerRegex.allMatches(pgn)) {
-      headers[match.group(1)!] = match.group(2)!;
-    }
-    for (final tag in _tagOrder) {
-      _headerControllers[tag] = TextEditingController(
-        text: headers[tag] ?? '?',
-      );
-    }
-
-    final movesMatch = RegExp(r'\n\n(.+)', dotAll: true).firstMatch(pgn);
-    final movesText = movesMatch?.group(1)?.trim() ?? pgn;
-    _moves = _parseMoves(movesText);
+    _moves = parsePgn(pgn, _headerControllers);
     for (final move in _moves) {
       _attachFocusListeners(move);
     }
   }
 
-  List<_MovePair> _parseMoves(String text) {
-    final regex = RegExp(r'(\d+)\.\s*(\S+)(?:\s+(\S+))?');
-    return regex
-        .allMatches(text)
-        .map(
-          (m) => _MovePair(
-            number: int.parse(m.group(1)!),
-            white: m.group(2) ?? '',
-            black: m.group(3) ?? '',
-          ),
-        )
+  void _runValidation() {
+    final sans = _moves
+        .expand((m) => [m.white.text.trim(), m.black.text.trim()])
         .toList();
-  }
-
-  String _serialisePgn() {
-    final buffer = StringBuffer();
-    for (final tag in _tagOrder) {
-      final value = _headerControllers[tag]?.text.trim() ?? '?';
-      buffer.writeln('[$tag "$value"]');
+    while (sans.isNotEmpty && sans.last.isEmpty) {
+      sans.removeLast();
     }
-    buffer.writeln();
-    for (final move in _moves) {
-      buffer.write('${move.number}. ${move.white.text}');
-      if (move.black.text.isNotEmpty) buffer.write(' ${move.black.text}');
-      buffer.write(' ');
-    }
-    final result = _headerControllers['Result']?.text.trim() ?? '*';
-    buffer.write(result);
-    return buffer.toString().trim();
+    setState(() => _plyValidity = validateMoves(sans));
   }
 
   void _renumberMoves() {
@@ -151,23 +88,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     }
   }
 
-  void _runValidation() {
-    final sans = <String>[];
-    for (final move in _moves) {
-      sans.add(move.white.text.trim());
-      sans.add(move.black.text.trim());
-    }
-    while (sans.isNotEmpty && sans.last.isEmpty) {
-      sans.removeLast();
-    }
-
-    final plyValidity = validateMoves(sans);
-    setState(() {
-      _plyValidity = plyValidity;
-    });
-  }
-
-  void _deleteMovePair(_MovePair move) {
+  void _deleteMovePair(MovePair move) {
     setState(() {
       _moves.remove(move);
       if (_editingMove == move) _editingMove = null;
@@ -177,10 +98,10 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     _runValidation();
   }
 
-  void _insertMovePairBelow(_MovePair move) {
+  void _insertMovePairBelow(MovePair move) {
     final index = _moves.indexOf(move);
     if (index == -1) return;
-    final newMove = _MovePair(number: move.number + 1);
+    final newMove = MovePair(number: move.number + 1);
     _attachFocusListeners(newMove);
     setState(() {
       _moves.insert(index + 1, newMove);
@@ -201,7 +122,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   Future<void> _save() async {
     if (!_isDirty) return;
     _runValidation();
-    final pgn = _serialisePgn();
+    final pgn = serialisePgn(_headerControllers, _moves);
     try {
       await scoresheetRepository.update(_scoresheet.id, pgn);
       if (!mounted) return;
@@ -230,8 +151,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   vertical: 8,
                 ),
                 children: [
-                  _buildSectionToggle(
-                    context: context,
+                  SectionToggle(
                     title: 'Headers',
                     expanded: _headersExpanded,
                     onPressed: () {
@@ -239,7 +159,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     },
                   ),
                   if (_headersExpanded)
-                    ..._tagOrder.map(
+                    ...kPgnTagOrder.map(
                       (tag) => Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
@@ -265,7 +185,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                                         color: theme
                                             .colorScheme
                                             .onSurfaceVariant
-                                            .withOpacity(0.5),
+                                            .withValues(alpha: 0.5),
                                       ),
                                   isDense: true,
                                   constraints: BoxConstraints(
@@ -287,8 +207,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   const SizedBox(height: 12),
                   Divider(color: theme.colorScheme.outlineVariant),
                   const SizedBox(height: 4),
-                  _buildSectionToggle(
-                    context: context,
+                  SectionToggle(
                     title: 'Moves',
                     expanded: _movesExpanded,
                     onPressed: () {
@@ -340,11 +259,11 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  Widget _buildMoveRow(BuildContext context, _MovePair move, int index) {
+  Widget _buildMoveRow(BuildContext context, MovePair move, int index) {
     final theme = Theme.of(context);
     final isEditing = _editingMove == move;
     final hintStyle = TextStyle(
-      color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
     );
     final whitePlyIndex = index * 2;
     final blackPlyIndex = index * 2 + 1;
@@ -492,38 +411,6 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
               ),
             ),
             const SizedBox(width: 36),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionToggle({
-    required BuildContext context,
-    required String title,
-    required bool expanded,
-    required VoidCallback onPressed,
-  }) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: TextButton(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
-          foregroundColor: theme.colorScheme.onSurface,
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Align(
-              alignment: Alignment.center,
-              child: Text(title, style: theme.textTheme.titleMedium),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Icon(expanded ? Icons.expand_less : Icons.expand_more),
-            ),
           ],
         ),
       ),

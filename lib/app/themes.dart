@@ -35,33 +35,17 @@ extension AppFontOptionExt on AppFontOption {
   };
 
   ThemeData apply(ThemeData theme) {
-    final textTheme = switch (this) {
-      AppFontOption.system => theme.textTheme,
-      AppFontOption.lexend => GoogleFonts.lexendTextTheme(theme.textTheme),
-      AppFontOption.ubuntu => GoogleFonts.ubuntuTextTheme(theme.textTheme),
-      AppFontOption.josefinSans => GoogleFonts.josefinSansTextTheme(
-        theme.textTheme,
-      ),
-      AppFontOption.nunito => GoogleFonts.nunitoTextTheme(theme.textTheme),
+    TextTheme applyFont(TextTheme base) => switch (this) {
+      AppFontOption.system => base,
+      AppFontOption.lexend => GoogleFonts.lexendTextTheme(base),
+      AppFontOption.ubuntu => GoogleFonts.ubuntuTextTheme(base),
+      AppFontOption.josefinSans => GoogleFonts.josefinSansTextTheme(base),
+      AppFontOption.nunito => GoogleFonts.nunitoTextTheme(base),
     };
 
     return theme.copyWith(
-      textTheme: textTheme,
-      primaryTextTheme: switch (this) {
-        AppFontOption.system => theme.primaryTextTheme,
-        AppFontOption.lexend => GoogleFonts.lexendTextTheme(
-          theme.primaryTextTheme,
-        ),
-        AppFontOption.ubuntu => GoogleFonts.ubuntuTextTheme(
-          theme.primaryTextTheme,
-        ),
-        AppFontOption.josefinSans => GoogleFonts.josefinSansTextTheme(
-          theme.primaryTextTheme,
-        ),
-        AppFontOption.nunito => GoogleFonts.nunitoTextTheme(
-          theme.primaryTextTheme,
-        ),
-      },
+      textTheme: applyFont(theme.textTheme),
+      primaryTextTheme: applyFont(theme.primaryTextTheme),
       appBarTheme: theme.appBarTheme.copyWith(
         titleTextStyle: _applyTextStyle(this, theme.appBarTheme.titleTextStyle),
       ),

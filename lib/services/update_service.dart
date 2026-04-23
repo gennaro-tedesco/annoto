@@ -32,11 +32,17 @@ abstract final class UpdateService {
     final data = response.data!;
     final latestTag = data['tag_name'] as String? ?? '';
     if (latestTag.isEmpty) return null;
-    try {
-      final current = Version.parse(_currentVersion.replaceFirst('v', ''));
-      final latest = Version.parse(latestTag.replaceFirst('v', ''));
-      if (latest <= current) return null;
-    } on FormatException {}
+    bool isUpToDate() {
+      try {
+        final current = Version.parse(_currentVersion.replaceFirst('v', ''));
+        final latest = Version.parse(latestTag.replaceFirst('v', ''));
+        return latest <= current;
+      } on FormatException {
+        return false;
+      }
+    }
+
+    if (isUpToDate()) return null;
 
     final assets = (data['assets'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();

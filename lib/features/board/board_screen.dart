@@ -74,6 +74,7 @@ class _BoardScreenState extends State<BoardScreen> {
   final _currentRowKey = GlobalKey();
   final _engine = ChessEngineService();
   Timer? _debounce;
+  bool _engineReady = false;
   bool _engineEnabled = false;
   int _multiPv = 1;
   List<EngineEvaluation> _evaluations = [];
@@ -139,7 +140,9 @@ class _BoardScreenState extends State<BoardScreen> {
         (s) => s.name == boardPieceSetNotifier.value,
         orElse: () => PieceSet.cburnett,
       );
-      _engine.init().catchError((_) {});
+      _engine.init().then((_) {
+        if (mounted) setState(() => _engineReady = true);
+      }).catchError((_) {});
       _initialised = true;
     }
   }
@@ -247,6 +250,7 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   void _toggleEngine() {
+    if (!_engineReady) return;
     final enabling = !_engineEnabled;
     setState(() => _engineEnabled = enabling);
     if (enabling) {
@@ -278,7 +282,9 @@ class _BoardScreenState extends State<BoardScreen> {
           .listen((evals) {
             if (mounted) setState(() => _evaluations = evals);
           });
-    } catch (_) {}
+    } catch (_) {
+      if (mounted) setState(() => _engineEnabled = false);
+    }
   }
 
   List<(int, bool, String)> _pvToSan(List<String> pv) {
@@ -704,10 +710,6 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   Widget _buildSelectors(ThemeData theme, double boardSize) {
-    final fillColor =
-        theme.inputDecorationTheme.fillColor ??
-        theme.colorScheme.surfaceContainerHighest;
-
     const buttonSize = AppControlSize.compact;
     const primaryIconSize = AppIconSize.inlineAction;
     const secondaryIconSize = AppIconSize.smallStatus;

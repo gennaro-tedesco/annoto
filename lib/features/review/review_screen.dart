@@ -1,22 +1,9 @@
+import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/services/pgn_validator.dart';
+import 'package:annoto/widgets/section_toggle.dart';
 import 'package:flutter/material.dart';
-
-class _MovePair {
-  _MovePair({required this.number, String white = '', String black = ''})
-    : white = TextEditingController(text: white),
-      black = TextEditingController(text: black);
-
-  final int number;
-  final TextEditingController white;
-  final TextEditingController black;
-
-  void dispose() {
-    white.dispose();
-    black.dispose();
-  }
-}
 
 class ReviewScreen extends StatefulWidget {
   const ReviewScreen({super.key});
@@ -28,18 +15,8 @@ class ReviewScreen extends StatefulWidget {
 }
 
 class _ReviewScreenState extends State<ReviewScreen> {
-  static const _tagOrder = [
-    'White',
-    'Black',
-    'Event',
-    'Site',
-    'Date',
-    'Round',
-    'Result',
-  ];
-
   final Map<String, TextEditingController> _headerControllers = {};
-  List<_MovePair> _moves = [];
+  List<MovePair> _moves = [];
   List<bool> _plyValidity = [];
   bool _initialised = false;
   bool _headersExpanded = true;
@@ -70,72 +47,22 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   void _parsePgn(String pgn) {
-    final headerRegex = RegExp(r'\[(\w+)\s+"([^"]*)"\]');
-    final headers = <String, String>{};
-    for (final match in headerRegex.allMatches(pgn)) {
-      headers[match.group(1)!] = match.group(2)!;
-    }
-    for (final tag in _tagOrder) {
-      _headerControllers[tag] = TextEditingController(
-        text: headers[tag] ?? '?',
-      );
-    }
-
-    final movesMatch = RegExp(r'\n\n(.+)', dotAll: true).firstMatch(pgn);
-    final movesText = movesMatch?.group(1)?.trim() ?? pgn;
-    _moves = _parseMoves(movesText);
-  }
-
-  List<_MovePair> _parseMoves(String text) {
-    final regex = RegExp(r'(\d+)\.\s*(\S+)(?:\s+(\S+))?');
-    return regex
-        .allMatches(text)
-        .map(
-          (m) => _MovePair(
-            number: int.parse(m.group(1)!),
-            white: m.group(2) ?? '',
-            black: m.group(3) ?? '',
-          ),
-        )
-        .toList();
-  }
-
-  String _serialisePgn() {
-    final buffer = StringBuffer();
-    for (final tag in _tagOrder) {
-      final value = _headerControllers[tag]?.text.trim() ?? '?';
-      buffer.writeln('[$tag "$value"]');
-    }
-    buffer.writeln();
-    for (final move in _moves) {
-      buffer.write('${move.number}. ${move.white.text}');
-      if (move.black.text.isNotEmpty) buffer.write(' ${move.black.text}');
-      buffer.write(' ');
-    }
-    final result = _headerControllers['Result']?.text.trim() ?? '*';
-    buffer.write(result);
-    return buffer.toString().trim();
+    _moves = parsePgn(pgn, _headerControllers);
   }
 
   void _runValidation() {
-    final sans = <String>[];
-    for (final move in _moves) {
-      sans.add(move.white.text.trim());
-      sans.add(move.black.text.trim());
-    }
+    final sans = _moves
+        .expand((m) => [m.white.text.trim(), m.black.text.trim()])
+        .toList();
     while (sans.isNotEmpty && sans.last.isEmpty) {
       sans.removeLast();
     }
-
-    final plyValidity = validateMoves(sans);
-    setState(() {
-      _plyValidity = plyValidity;
-    });
+    setState(() => _plyValidity = validateMoves(sans));
   }
 
   Future<void> _confirm() async {
     _runValidation();
-    final pgn = _serialisePgn();
+    final pgn = serialisePgn(_headerControllers, _moves);
     try {
       await scoresheetRepository.save(pgn);
       if (!mounted) return;
@@ -164,8 +91,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   vertical: 8,
                 ),
                 children: [
-                  _buildSectionToggle(
-                    context: context,
+                  SectionToggle(
                     title: 'Headers',
                     expanded: _headersExpanded,
                     onPressed: () {
@@ -173,7 +99,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     },
                   ),
                   if (_headersExpanded)
-                    ..._tagOrder.map(
+                    ...kPgnTagOrder.map(
                       (tag) => Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
@@ -198,7 +124,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                                         color: theme
                                             .colorScheme
                                             .onSurfaceVariant
-                                            .withOpacity(0.5),
+                                            .withValues(alpha: 0.5),
                                       ),
                                   isDense: true,
                                   constraints: BoxConstraints(
@@ -220,8 +146,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   const SizedBox(height: 12),
                   Divider(color: theme.colorScheme.outlineVariant),
                   const SizedBox(height: 4),
-                  _buildSectionToggle(
-                    context: context,
+                  SectionToggle(
                     title: 'Moves',
                     expanded: _movesExpanded,
                     onPressed: () {
@@ -261,7 +186,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     );
   }
 
-  Widget _buildMoveRow(BuildContext context, _MovePair move, int index) {
+  Widget _buildMoveRow(BuildContext context, MovePair move, int index) {
     final theme = Theme.of(context);
     final whitePlyIndex = index * 2;
     final blackPlyIndex = index * 2 + 1;
@@ -294,7 +219,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
               decoration: InputDecoration(
                 hintText: 'White',
                 hintStyle: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
                 isDense: true,
                 constraints: BoxConstraints(
@@ -329,7 +254,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
               decoration: InputDecoration(
                 hintText: 'Black',
                 hintStyle: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                  color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
                 isDense: true,
                 constraints: BoxConstraints(
@@ -355,38 +280,6 @@ class _ReviewScreenState extends State<ReviewScreen> {
           ),
           const SizedBox(width: 36),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSectionToggle({
-    required BuildContext context,
-    required String title,
-    required bool expanded,
-    required VoidCallback onPressed,
-  }) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: TextButton(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 8),
-          foregroundColor: theme.colorScheme.onSurface,
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Align(
-              alignment: Alignment.center,
-              child: Text(title, style: theme.textTheme.titleMedium),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Icon(expanded ? Icons.expand_less : Icons.expand_more),
-            ),
-          ],
-        ),
       ),
     );
   }
