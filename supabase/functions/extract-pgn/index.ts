@@ -20,7 +20,12 @@ Deno.serve(async (req: Request) => {
 
   const { image, mimeType, provider: providerName, model } = await req.json()
   if (!image) return reply({ error: 'empty_input' }, 400)
-  if (image.length > MAX_BYTES) return reply({ error: 'payload_too_large' }, 413)
+  if ((image.length * 3) / 4 > MAX_BYTES) return reply({ error: 'payload_too_large' }, 413)
+
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp']
+  if (mimeType && !allowedMimeTypes.includes(mimeType)) {
+    return reply({ error: 'invalid_mime_type' }, 400)
+  }
 
   const provider = getProvider(providerName, model)
 

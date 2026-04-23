@@ -33,12 +33,17 @@ class ChessEngineService {
     if (_engine != null) return;
     final engine = Stockfish();
     _engine = engine;
-    while (engine.state.value != StockfishState.ready) {
-      await Future.delayed(const Duration(milliseconds: 50));
+    try {
+      while (engine.state.value != StockfishState.ready) {
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+      _stdoutSub = engine.stdout.listen(_onStdout);
+      _waitingForUciOk = true;
+      engine.stdin = 'uci';
+    } catch (_) {
+      _engine = null;
+      rethrow;
     }
-    _stdoutSub = engine.stdout.listen(_onStdout);
-    _waitingForUciOk = true;
-    engine.stdin = 'uci';
   }
 
   void _onStdout(String line) {

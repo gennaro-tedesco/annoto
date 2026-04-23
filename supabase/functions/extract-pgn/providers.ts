@@ -86,27 +86,34 @@ function _responseFormatJsonSchema() {
   }
 }
 
-function _googleErrorCode(status: number, body: string): string {
-  if (status === 503 && body.includes('"status": "UNAVAILABLE"')) return 'provider_unavailable'
-  if (status === 404 || body.includes('not found') || body.includes('not supported')) return 'model_not_found'
-  if (status === 429 || body.includes('RESOURCE_EXHAUSTED') || body.includes('quota')) return 'quota_exceeded'
+function _classifyHttpError(
+  status: number,
+  body: string,
+  hints: { unavailable: string[]; notFound: string[]; quota: string[] },
+): string {
+  const n = body.toLowerCase()
+  if (status === 503 || hints.unavailable.some((h) => n.includes(h))) return 'provider_unavailable'
+  if (status === 404 || hints.notFound.some((h) => n.includes(h))) return 'model_not_found'
+  if (status === 429 || hints.quota.some((h) => n.includes(h))) return 'quota_exceeded'
   return 'extraction_failed'
 }
 
-function _openRouterErrorCode(status: number, body: string): string {
-  const n = body.toLowerCase()
-  if (status === 503 || n.includes('unavailable')) return 'provider_unavailable'
-  if (status === 404 || n.includes('not found') || n.includes('unknown model')) return 'model_not_found'
-  if (status === 429 || n.includes('rate limit') || n.includes('quota') || n.includes('billing') || n.includes('credit')) return 'quota_exceeded'
-  return 'extraction_failed'
+const _googleHints = {
+  unavailable: ['"status": "unavailable"'],
+  notFound: ['not found', 'not supported'],
+  quota: ['resource_exhausted', 'quota'],
 }
 
-function _groqErrorCode(status: number, body: string): string {
-  const n = body.toLowerCase()
-  if (status === 503 || n.includes('service unavailable')) return 'provider_unavailable'
-  if (status === 404 || n.includes('model not found') || n.includes('does not exist')) return 'model_not_found'
-  if (status === 429 || n.includes('rate limit') || n.includes('quota')) return 'quota_exceeded'
-  return 'extraction_failed'
+const _openRouterHints = {
+  unavailable: ['unavailable'],
+  notFound: ['not found', 'unknown model'],
+  quota: ['rate limit', 'quota', 'billing', 'credit'],
+}
+
+const _groqHints = {
+  unavailable: ['service unavailable'],
+  notFound: ['model not found', 'does not exist'],
+  quota: ['rate limit', 'quota'],
 }
 
 export type GoogleConfig = { apiKey: string; model: string }
@@ -145,7 +152,7 @@ export class GoogleProvider implements PgnProvider {
     if (!res.ok) {
       const errBody = await res.text()
       console.error('Google API error — status:', res.status, '— body:', errBody)
-      const code = _googleErrorCode(res.status, errBody)
+      const code = _classifyHttpError(res.status, errBody, _googleHints)
       console.error('Google API error — resolved code:', code)
       throw new Error(code)
     }
@@ -198,7 +205,7 @@ export class OpenRouterProvider implements PgnProvider {
     if (!res.ok) {
       const errBody = await res.text()
       console.error('OpenRouter API error', res.status, errBody)
-      throw new Error(_openRouterErrorCode(res.status, errBody))
+      throw new Error(_classifyHttpError(res.status, errBody, _openRouterHints))
     }
 
     const data = await res.json()
@@ -240,7 +247,7 @@ export class GroqProvider implements PgnProvider {
     if (!res.ok) {
       const errBody = await res.text()
       console.error('Groq API error', res.status, errBody)
-      throw new Error(_groqErrorCode(res.status, errBody))
+      throw new Error(_classifyHttpError(res.status, errBody, _groqHints))
     }
 
     const data = await res.json()

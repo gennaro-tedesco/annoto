@@ -38,10 +38,16 @@ class ScoresheetRepository {
     final index = await _readIndex();
     final scoresheets = <Scoresheet>[];
     for (final entry in index) {
-      final pgnFile = File('${dir.path}/${entry['id']}.pgn');
+      final id = entry['id'];
+      if (id == null) continue;
+      final pgnFile = File('${dir.path}/$id.pgn');
       if (!await pgnFile.exists()) continue;
-      final pgn = await pgnFile.readAsString();
-      scoresheets.add(Scoresheet.fromJson(entry, pgn));
+      try {
+        final pgn = await pgnFile.readAsString();
+        scoresheets.add(Scoresheet.fromJson(entry, pgn));
+      } catch (_) {
+        continue;
+      }
     }
     return scoresheets;
   }

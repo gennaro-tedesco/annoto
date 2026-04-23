@@ -8,11 +8,11 @@ import 'package:annoto/features/board/board_screen.dart';
 import 'package:annoto/features/game_detail/game_detail_screen.dart';
 import 'package:annoto/features/review/review_screen.dart';
 import 'package:annoto/features/settings/settings_screen.dart';
+import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/services/pgn_validator.dart';
-import 'package:annoto/widgets/gradient_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:image_picker/image_picker.dart';
@@ -55,6 +55,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<Scoresheet> _scoresheets = [];
+  _FilterData _filterData = _FilterData(
+    tagsById: {},
+    tournaments: [],
+    rounds: [],
+    whitePlayers: [],
+    blackPlayers: [],
+  );
   bool _filtersOpen = false;
   late final AnimationController _filterSpinController;
   String? _selectedTournament;
@@ -83,7 +90,8 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) return;
     setState(() {
       _scoresheets = scoresheets;
-      _clearMissingFilters(_buildFilterData());
+      _filterData = _buildFilterData();
+      _clearMissingFilters(_filterData);
     });
   }
 
@@ -209,7 +217,9 @@ class _HomeScreenState extends State<HomeScreen>
         theme.colorScheme.surfaceContainerHighest;
     final overlayWidth = MediaQuery.sizeOf(context).width - 32;
 
-    return Scaffold(
+    return Stack(
+      children: [
+        Scaffold(
       key: _scaffoldKey,
       endDrawer: SizedBox(
         width: MediaQuery.sizeOf(context).width * 0.7,
@@ -249,41 +259,43 @@ class _HomeScreenState extends State<HomeScreen>
             height: _fabOverlayHeight,
             child: _buildBottomOverlay(context, overlayWidth, fillColor),
           ),
-          if (_filtersOpen)
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: _closeFilters,
-                behavior: HitTestBehavior.opaque,
-                child: ColoredBox(
-                  color: theme.colorScheme.scrim.withValues(alpha: 0.45),
-                ),
-              ),
-            ),
-          Positioned(
-            left: _bottomOverlaySideInset,
-            bottom:
-                MediaQuery.of(context).padding.bottom +
-                _bottomOverlayBottomInset +
-                _fabOverlayHeight +
-                16,
-            child: ClipRect(
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                alignment: Alignment.bottomCenter,
-                child: SizedBox(
-                  width: overlayWidth
-                      .clamp(_filterButtonWidth, _filterPanelMaxWidth)
-                      .toDouble(),
-                  child: _filtersOpen
-                      ? _buildFilterPanel(context, _buildFilterData())
-                      : const SizedBox.shrink(),
-                ),
+        ],
+      ),
+        ),
+        if (_filtersOpen)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _closeFilters,
+              behavior: HitTestBehavior.opaque,
+              child: ColoredBox(
+                color: theme.colorScheme.scrim.withValues(alpha: 0.45),
               ),
             ),
           ),
-        ],
-      ),
+        Positioned(
+          left: _bottomOverlaySideInset,
+          bottom:
+              MediaQuery.of(context).padding.bottom +
+              _bottomOverlayBottomInset +
+              _fabOverlayHeight +
+              16,
+          child: ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              alignment: Alignment.bottomCenter,
+              child: SizedBox(
+                width: overlayWidth
+                    .clamp(_filterButtonWidth, _filterPanelMaxWidth)
+                    .toDouble(),
+                child: _filtersOpen
+                    ? _buildFilterPanel(context)
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -386,10 +398,10 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       );
     }
-    final filterData = _buildFilterData();
     final filteredScoresheets = _scoresheets
         .where(
-          (scoresheet) => _matchesFilters(filterData.tagsById[scoresheet.id]!),
+          (scoresheet) =>
+              _matchesFilters(_filterData.tagsById[scoresheet.id] ?? {}),
         )
         .toList();
     return filteredScoresheets.isEmpty
@@ -473,12 +485,12 @@ class _HomeScreenState extends State<HomeScreen>
                       ]);
                     } else {
                       await scoresheetRepository.delete(scoresheet.id);
-                      setState(() {
-                        _scoresheets.removeWhere(
-                          (item) => item.id == scoresheet.id,
-                        );
-                        _clearMissingFilters(_buildFilterData());
-                      });
+                      _scoresheets.removeWhere(
+                        (item) => item.id == scoresheet.id,
+                      );
+                      _filterData = _buildFilterData();
+                      _clearMissingFilters(_filterData);
+                      setState(() {});
                     }
                     return false;
                   },
@@ -489,7 +501,7 @@ class _HomeScreenState extends State<HomeScreen>
           );
   }
 
-  Widget _buildFilterPanel(BuildContext context, _FilterData filterData) {
+  Widget _buildFilterPanel(BuildContext context) {
     final theme = Theme.of(context);
     final fillColor =
         theme.inputDecorationTheme.fillColor ??
@@ -519,10 +531,7 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 8),
             LayoutBuilder(
               builder: (context, constraints) {
-                final columns = 1;
-                final totalSpacing = _filterSpacing * (columns - 1);
-                final fieldWidth =
-                    (constraints.maxWidth - totalSpacing) / columns;
+                final fieldWidth = constraints.maxWidth;
                 return Wrap(
                   spacing: _filterSpacing,
                   runSpacing: _filterSpacing,
@@ -533,7 +542,7 @@ class _HomeScreenState extends State<HomeScreen>
                       fillColor: fillColor,
                       label: 'Tournament',
                       value: _selectedTournament,
-                      options: filterData.tournaments,
+                      options: _filterData.tournaments,
                       onSelected: (value) {
                         setState(() => _selectedTournament = value);
                       },
@@ -544,7 +553,7 @@ class _HomeScreenState extends State<HomeScreen>
                       fillColor: fillColor,
                       label: 'Round',
                       value: _selectedRound,
-                      options: filterData.rounds,
+                      options: _filterData.rounds,
                       onSelected: (value) {
                         setState(() => _selectedRound = value);
                       },
@@ -555,7 +564,7 @@ class _HomeScreenState extends State<HomeScreen>
                       fillColor: fillColor,
                       label: 'White',
                       value: _selectedWhitePlayer,
-                      options: filterData.whitePlayers,
+                      options: _filterData.whitePlayers,
                       onSelected: (value) {
                         setState(() => _selectedWhitePlayer = value);
                       },
@@ -566,7 +575,7 @@ class _HomeScreenState extends State<HomeScreen>
                       fillColor: fillColor,
                       label: 'Black',
                       value: _selectedBlackPlayer,
-                      options: filterData.blackPlayers,
+                      options: _filterData.blackPlayers,
                       onSelected: (value) {
                         setState(() => _selectedBlackPlayer = value);
                       },
@@ -624,6 +633,8 @@ class _HomeScreenState extends State<HomeScreen>
                 Navigator.of(
                   context,
                 ).pushNamed(BoardScreen.routeName, arguments: scoresheet);
+              } else {
+                NotificationService.showError('Invalid PGN');
               }
             },
             onLongPress: () async {
@@ -688,19 +699,21 @@ class _HomeScreenState extends State<HomeScreen>
     _ => 'Extraction failed. Try again.',
   };
 
+  static final _movesBlockRegex = RegExp(r'\n\n(.+)', dotAll: true);
+
   bool _hasInvalidMoves(String pgn) {
-    final movesMatch = RegExp(r'\n\n(.+)', dotAll: true).firstMatch(pgn);
-    final movesText = movesMatch?.group(1)?.trim() ?? '';
+    final movesText =
+        _movesBlockRegex.firstMatch(pgn)?.group(1)?.trim() ?? '';
     if (movesText.isEmpty) return false;
     final sans = <String>[];
-    for (final m in RegExp(
-      r'(\d+)\.\s*(\S+)(?:\s+(\S+))?',
-    ).allMatches(movesText)) {
+    for (final m in pgnMoveRegex.allMatches(movesText)) {
       sans.add(m.group(2) ?? '');
       final black = m.group(3);
       if (black != null) sans.add(black);
     }
-    while (sans.isNotEmpty && sans.last.isEmpty) sans.removeLast();
+    while (sans.isNotEmpty && sans.last.isEmpty) {
+      sans.removeLast();
+    }
     if (sans.isEmpty) return false;
     return validateMoves(sans).any((v) => !v);
   }
@@ -900,7 +913,7 @@ class _FilterDropdownState extends State<_FilterDropdown> {
             color: widget.fillColor,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: theme.colorScheme.outline.withOpacity(0.5),
+              color: theme.colorScheme.outline.withValues(alpha: 0.5),
             ),
           ),
           child: Row(
