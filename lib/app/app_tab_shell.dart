@@ -76,7 +76,7 @@ class _AppTabShellState extends State<AppTabShell> {
                 child: _buildTabButton(
                   context,
                   fillColor: fillColor,
-                  icon: LucideIcons.sword,
+                  icon: LucideIcons.chess_knight,
                   label: _lichessLabel,
                   selected: _selectedTabIndex == _lichessTabIndex,
                   onTap: () => _onDestinationSelected(_lichessTabIndex),

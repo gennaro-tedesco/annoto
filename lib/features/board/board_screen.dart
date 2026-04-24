@@ -70,6 +70,8 @@ class BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<BoardScreen> {
   static const double _boardWidthFactor = 0.9;
   static const double _engineBoardWidthFactor = 0.92;
+  static const Duration _engineAnimationDuration = Duration(milliseconds: 100);
+  static const Duration _boardAnimationDuration = Duration(milliseconds: 250);
   static const int _pvFoldDepth = 10;
   static const double _panelOutlineAlpha = 0.08;
   static const double _boardSelectorsGap = 6.0;
@@ -173,9 +175,7 @@ class _BoardScreenState extends State<BoardScreen> {
             if (mounted) {
               setState(() {
                 _engineReady = true;
-                _engineEnabled = widget.engineMode;
               });
-              if (widget.engineMode) _startAnalysis();
             }
           })
           .catchError((_) {});
@@ -485,6 +485,9 @@ class _BoardScreenState extends State<BoardScreen> {
     ThemeData theme,
     List<(int, bool, String)> tokens,
   ) {
+    final textStyle = widget.engineMode
+        ? theme.textTheme.bodyLarge
+        : theme.textTheme.bodyMedium;
     final widgets = <Widget>[];
     for (int i = 0; i < tokens.length; i++) {
       final (moveNum, isWhite, san) = tokens[i];
@@ -492,16 +495,14 @@ class _BoardScreenState extends State<BoardScreen> {
         widgets.add(
           Text(
             isWhite ? '$moveNum. ' : '$moveNum… ',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
+            style: textStyle?.copyWith(color: theme.colorScheme.outline),
           ),
         );
       }
       widgets.add(
         Padding(
           padding: const EdgeInsets.only(right: 4),
-          child: Text(_toFigurine(san), style: theme.textTheme.bodyMedium),
+          child: Text(_toFigurine(san), style: textStyle),
         ),
       );
     }
@@ -532,6 +533,9 @@ class _BoardScreenState extends State<BoardScreen> {
     final visibleTokens = canFold && !isExpanded
         ? pvTokens.sublist(0, _pvFoldDepth)
         : pvTokens;
+    final textStyle = widget.engineMode
+        ? theme.textTheme.bodyLarge
+        : theme.textTheme.bodyMedium;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -543,7 +547,7 @@ class _BoardScreenState extends State<BoardScreen> {
             child: evalText != null
                 ? Text(
                     evalText,
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                    style: textStyle?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: theme.colorScheme.primary,
                     ),
@@ -566,7 +570,7 @@ class _BoardScreenState extends State<BoardScreen> {
                         children: [
                           Text(
                             '…',
-                            style: theme.textTheme.bodyMedium?.copyWith(
+                            style: textStyle?.copyWith(
                               color: theme.colorScheme.outline,
                             ),
                           ),
@@ -784,6 +788,9 @@ class _BoardScreenState extends State<BoardScreen> {
       settings: ChessboardSettings(
         colorScheme: _colorScheme,
         pieceAssets: _pieceSet.assets,
+        animationDuration: widget.engineMode
+            ? _engineAnimationDuration
+            : _boardAnimationDuration,
         dragFeedbackScale: 1.0,
       ),
       shapes: shapes.isEmpty ? null : shapes,
@@ -934,14 +941,6 @@ class _BoardScreenState extends State<BoardScreen> {
     return SizedBox.expand(
       child: Stack(
         children: [
-          if (_game.moves.children.isNotEmpty && boardTop > 0)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: boardTop,
-              child: _buildMoveList(theme),
-            ),
           Positioned(
             top: boardTop,
             left: 0,
