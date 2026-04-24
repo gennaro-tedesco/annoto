@@ -62,6 +62,8 @@ class _HomeScreenState extends State<HomeScreen>
   static const _collectionChipSpacing = 12.0;
   static const _backgroundIconSize = 220.0;
   static const _backgroundIconOpacity = 0.08;
+  static const _titleIconSize = 22.0;
+  static const _titleIconSpacing = 6.0;
   static const _backgroundChessIcons = [
     LucideIcons.chess_bishop,
     LucideIcons.chess_king,
@@ -87,6 +89,7 @@ class _HomeScreenState extends State<HomeScreen>
   String? _selectedWhitePlayer;
   String? _selectedBlackPlayer;
   late final IconData _backgroundChessIcon;
+  late final List<IconData> _titleChessIcons;
 
   @override
   void initState() {
@@ -94,6 +97,8 @@ class _HomeScreenState extends State<HomeScreen>
     final random = Random();
     _backgroundChessIcon =
         _backgroundChessIcons[random.nextInt(_backgroundChessIcons.length)];
+    _titleChessIcons = List<IconData>.from(_backgroundChessIcons)
+      ..shuffle(random);
     _filterSpinController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -294,7 +299,22 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           appBar: AppBar(
             centerTitle: true,
-            title: Image.asset('images/logo.png', height: 50),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (int index = 0; index < _titleChessIcons.length; index++) ...[
+                  Icon(
+                    _titleChessIcons[index],
+                    size: _titleIconSize,
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: _backgroundIconOpacity,
+                    ),
+                  ),
+                  if (index < _titleChessIcons.length - 1)
+                    const SizedBox(width: _titleIconSpacing),
+                ],
+              ],
+            ),
             actions: [
               IconButton(
                 icon: const Icon(Icons.settings_outlined),

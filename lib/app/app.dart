@@ -1,4 +1,5 @@
 import 'package:annoto/app/themes.dart';
+import 'package:annoto/app/app_tab_shell.dart';
 import 'package:annoto/features/account/account_screen.dart';
 import 'package:annoto/features/board/board_screen.dart';
 import 'package:annoto/features/game_detail/game_detail_screen.dart';
@@ -47,6 +48,7 @@ class _AnnotoAppState extends State<AnnotoApp> {
           return MaterialApp(
             title: 'annoto',
             scaffoldMessengerKey: NotificationService.messengerKey,
+            home: const AppTabShell(),
             theme: theme,
             darkTheme: appFontNotifier.value.apply(
               AppThemes.systemDark(fontScale: uiFontScaleNotifier.value),
@@ -55,14 +57,12 @@ class _AnnotoAppState extends State<AnnotoApp> {
                 ? ThemeMode.system
                 : ThemeMode.light,
             routes: {
-              HomeScreen.routeName: (_) => const HomeScreen(),
               AccountScreen.routeName: (_) => const AccountScreen(),
               ProviderScreen.routeName: (_) => const ProviderScreen(),
               ReviewScreen.routeName: (_) => const ReviewScreen(),
               GameDetailScreen.routeName: (_) => const GameDetailScreen(),
               BoardScreen.routeName: (_) => const BoardScreen(),
             },
-            initialRoute: HomeScreen.routeName,
           );
         },
       ),

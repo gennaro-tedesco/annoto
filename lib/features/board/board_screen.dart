@@ -66,6 +66,7 @@ class BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<BoardScreen> {
   static const double _boardWidthFactor = 0.9;
   static const int _pvFoldDepth = 10;
+  static const double _panelOutlineAlpha = 0.08;
   static const double _boardSelectorsGap = 6.0;
   static const double _selectorGap = 4.0;
   static const double _selectorSidePadding = 8.0;
@@ -584,7 +585,7 @@ class _BoardScreenState extends State<BoardScreen> {
 
   Widget _buildEvalPanel(ThemeData theme) {
     final panelColor = Color.alphaBlend(
-      theme.colorScheme.outline.withValues(alpha: 0.06),
+      theme.colorScheme.outline.withValues(alpha: _panelOutlineAlpha),
       theme.scaffoldBackgroundColor,
     );
 
@@ -1234,7 +1235,7 @@ class _BoardScreenState extends State<BoardScreen> {
 
   Widget _buildMoveList(ThemeData theme) {
     final movesPanelColor = Color.alphaBlend(
-      theme.colorScheme.outline.withValues(alpha: 0.06),
+      theme.colorScheme.outline.withValues(alpha: _panelOutlineAlpha),
       theme.scaffoldBackgroundColor,
     );
     final mainLine = _mainLine;
