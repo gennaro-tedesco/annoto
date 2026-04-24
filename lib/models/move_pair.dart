@@ -47,6 +47,29 @@ class MovePair {
   }
 }
 
+List<PgnComment> parsePgnComments(List<String>? comments) {
+  return (comments ?? const <String>[])
+      .map(PgnComment.fromPgn)
+      .toList(growable: false);
+}
+
+List<String> displayPgnCommentTexts(List<String>? comments) {
+  return parsePgnComments(comments)
+      .map((comment) => comment.text?.trim())
+      .whereType<String>()
+      .where((comment) => comment.isNotEmpty)
+      .toList(growable: false);
+}
+
+List<String> movePairCommentTexts(MovePair move) {
+  return [
+    ...displayPgnCommentTexts(move.whiteStartingComments),
+    ...displayPgnCommentTexts(move.whiteComments),
+    ...displayPgnCommentTexts(move.blackStartingComments),
+    ...displayPgnCommentTexts(move.blackComments),
+  ];
+}
+
 PgnGame<PgnNodeData> parsePgnGame(String pgn) =>
     PgnGame.parsePgn(pgn, initHeaders: PgnGame.emptyHeaders);
 

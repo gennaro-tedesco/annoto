@@ -1450,10 +1450,10 @@ class _BoardScreenState extends State<BoardScreen> {
     required VoidCallback? onBlackTap,
   }) {
     final comments = [
-      ..._cleanComments(whiteStartingComments),
-      ..._cleanComments(whiteComments),
-      ..._cleanComments(blackStartingComments),
-      ..._cleanComments(blackComments),
+      ...displayPgnCommentTexts(whiteStartingComments),
+      ...displayPgnCommentTexts(whiteComments),
+      ...displayPgnCommentTexts(blackStartingComments),
+      ...displayPgnCommentTexts(blackComments),
     ];
 
     return LayoutBuilder(
@@ -1534,20 +1534,8 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
-  List<String> _cleanComments(List<String>? comments) {
-    final texts = <String>[];
-    for (final rawComment in comments ?? const <String>[]) {
-      final parsedComment = PgnComment.fromPgn(rawComment);
-      final text = parsedComment.text?.trim();
-      if (text != null && text.isNotEmpty) {
-        texts.add(text);
-      }
-    }
-    return texts;
-  }
-
   List<Widget> _commentTokens(ThemeData theme, List<String>? comments) {
-    return _cleanComments(comments)
+    return displayPgnCommentTexts(comments)
         .map(
           (comment) => Padding(
             padding: const EdgeInsets.only(right: 4),
@@ -1569,11 +1557,10 @@ class _BoardScreenState extends State<BoardScreen> {
 
     final node = _path.last.data;
     final shapes = <Shape>{};
-    for (final rawComment in [
-      ...node.startingComments ?? const <String>[],
-      ...node.comments ?? const <String>[],
+    for (final parsedComment in [
+      ...parsePgnComments(node.startingComments),
+      ...parsePgnComments(node.comments),
     ]) {
-      final parsedComment = PgnComment.fromPgn(rawComment);
       for (final shape in parsedComment.shapes) {
         final boardShape = _toBoardShape(shape);
         if (boardShape != null) {

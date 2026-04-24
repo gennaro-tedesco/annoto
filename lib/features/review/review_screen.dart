@@ -195,7 +195,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     final blackInvalid =
         blackPlyIndex < _plyValidity.length && !_plyValidity[blackPlyIndex];
 
-    final comments = _commentTexts(move);
+    final comments = movePairCommentTexts(move);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -321,17 +321,5 @@ class _ReviewScreenState extends State<ReviewScreen> {
         ],
       ),
     );
-  }
-
-  List<String> _commentTexts(MovePair move) {
-    return [
-          ...move.whiteStartingComments,
-          ...move.whiteComments,
-          ...move.blackStartingComments,
-          ...move.blackComments,
-        ]
-        .map((comment) => comment.trim())
-        .where((comment) => comment.isNotEmpty)
-        .toList();
   }
 }
