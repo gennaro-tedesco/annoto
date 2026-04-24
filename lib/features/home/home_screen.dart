@@ -114,9 +114,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadScoresheets() async {
     final scoresheets = await scoresheetRepository.getAll();
+
     if (!mounted) return;
+
     setState(() {
-      _scoresheets = scoresheets;
+      _scoresheets = scoresheets
+          .where((scoresheet) => !scoresheet.filename.startsWith('lichess_'))
+          .toList();
       _filterData = _buildFilterData();
       _clearMissingFilters(_filterData);
     });

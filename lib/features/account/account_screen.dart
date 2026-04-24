@@ -1,6 +1,4 @@
 import 'package:annoto/app/app_state.dart';
-import 'package:annoto/models/move_pair.dart';
-import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/lichess_service.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:flutter/material.dart';
@@ -90,8 +88,6 @@ class _AccountScreenState extends State<AccountScreen> {
                         : const Text('Sign out'),
                   ),
                   const SizedBox(height: 32),
-                  Text('Lichess', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 12),
                   TextField(
                     controller: _lichessUsernameController,
                     autocorrect: false,
@@ -99,7 +95,7 @@ class _AccountScreenState extends State<AccountScreen> {
                       hintText: 'Lichess username',
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
                   FilledButton(
                     onPressed: _lichessLoading ? null : _authenticateLichess,
                     child: _lichessLoading
@@ -157,18 +153,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
     try {
       await lichessService.authenticate(username);
-
-      final pgn = await lichessService.exportStudiesPgn(username);
-      final games = splitPgnGames(pgn);
-
-      if (games.isEmpty) {
-        NotificationService.showError('No valid Lichess studies found.');
-        return;
-      }
-
-      await scoresheetRepository.save(pgn, filename: 'lichess_$username.pgn');
-
-      NotificationService.showInfo('Lichess studies imported.');
+      NotificationService.showError('Lichess connected.');
     } catch (e) {
       NotificationService.showError(e.toString());
     } finally {
