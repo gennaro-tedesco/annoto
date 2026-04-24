@@ -647,7 +647,7 @@ class _BoardScreenState extends State<BoardScreen> {
                 const SizedBox(height: 12),
                 _buildMetadata(theme),
                 const SizedBox(height: 12),
-                Center(child: _buildChessboard(boardSize)),
+                _buildBoardArea(constraints.maxWidth, boardSize),
                 const SizedBox(height: _boardSelectorsGap),
                 _buildSelectors(theme, selectorWidth),
                 if (_engineEnabled)
@@ -776,6 +776,51 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
+  Widget _buildBoardArea(double availableWidth, double boardSize) {
+    final sideZoneWidth = ((availableWidth - boardSize) / 2).clamp(
+      0.0,
+      double.infinity,
+    );
+    final isFirst = _path.isEmpty;
+    final isLast = _currentNode.children.isEmpty;
+
+    return SizedBox(
+      width: availableWidth,
+      height: boardSize,
+      child: Stack(
+        children: [
+          Center(child: _buildChessboard(boardSize)),
+          if (sideZoneWidth > 0)
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: sideZoneWidth,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: isFirst
+                    ? null
+                    : () => _navigate(_path.sublist(0, _path.length - 1)),
+              ),
+            ),
+          if (sideZoneWidth > 0)
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: sideZoneWidth,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: isLast
+                    ? null
+                    : () => _navigate([..._path, _currentNode.children.first]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildLandscapeBody(ThemeData theme, BoxConstraints constraints) {
     final halfWidth = constraints.maxWidth / 2;
     const columnOverhead = _boardSelectorsGap + AppControlSize.compact;
@@ -793,7 +838,7 @@ class _BoardScreenState extends State<BoardScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Center(child: _buildChessboard(boardSize)),
+              _buildBoardArea(halfWidth, boardSize),
               const SizedBox(height: _boardSelectorsGap),
               _buildSelectors(theme, halfWidth),
             ],
