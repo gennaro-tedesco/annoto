@@ -55,9 +55,13 @@ ChessboardColorScheme _schemeByLabel(String label) =>
     ChessboardColorScheme.brown;
 
 class BoardScreen extends StatefulWidget {
-  const BoardScreen({super.key});
+  const BoardScreen({super.key}) : engineMode = false;
+
+  const BoardScreen.engine({super.key}) : engineMode = true;
 
   static const routeName = '/board';
+
+  final bool engineMode;
 
   @override
   State<BoardScreen> createState() => _BoardScreenState();
@@ -65,6 +69,7 @@ class BoardScreen extends StatefulWidget {
 
 class _BoardScreenState extends State<BoardScreen> {
   static const double _boardWidthFactor = 0.9;
+  static const double _engineBoardWidthFactor = 0.92;
   static const int _pvFoldDepth = 10;
   static const double _panelOutlineAlpha = 0.08;
   static const double _boardSelectorsGap = 6.0;
@@ -146,12 +151,17 @@ class _BoardScreenState extends State<BoardScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialised) {
-      final scoresheet =
-          ModalRoute.of(context)!.settings.arguments as Scoresheet;
-      _games = splitPgnGames(scoresheet.pgn);
-      if (_games.isEmpty) _games = [scoresheet.pgn];
-      _game = PgnGame.parsePgn(_games[0], initHeaders: PgnGame.emptyHeaders);
-      _buildMaps(_game.moves, PgnGame.startingPosition(_game.headers));
+      if (widget.engineMode) {
+        _game = PgnGame.parsePgn('', initHeaders: PgnGame.emptyHeaders);
+        _buildMaps(_game.moves, Chess.initial);
+      } else {
+        final scoresheet =
+            ModalRoute.of(context)!.settings.arguments as Scoresheet;
+        _games = splitPgnGames(scoresheet.pgn);
+        if (_games.isEmpty) _games = [scoresheet.pgn];
+        _game = PgnGame.parsePgn(_games[0], initHeaders: PgnGame.emptyHeaders);
+        _buildMaps(_game.moves, PgnGame.startingPosition(_game.headers));
+      }
       _colorScheme = _schemeByLabel(boardColorSchemeNotifier.value);
       _pieceSet = PieceSet.values.firstWhere(
         (s) => s.name == boardPieceSetNotifier.value,
@@ -160,7 +170,13 @@ class _BoardScreenState extends State<BoardScreen> {
       _engine
           .init()
           .then((_) {
-            if (mounted) setState(() => _engineReady = true);
+            if (mounted) {
+              setState(() {
+                _engineReady = true;
+                _engineEnabled = widget.engineMode;
+              });
+              if (widget.engineMode) _startAnalysis();
+            }
           })
           .catchError((_) {});
       _initialised = true;
@@ -636,6 +652,12 @@ class _BoardScreenState extends State<BoardScreen> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
+            if (widget.engineMode) {
+              return constraints.maxWidth > constraints.maxHeight
+                  ? _buildEngineLandscapeBody(theme, constraints)
+                  : _buildEnginePortraitBody(theme, constraints);
+            }
+
             final boardSize = constraints.maxWidth * _boardWidthFactor;
             final selectorWidth = constraints.maxWidth;
 
@@ -892,6 +914,99 @@ class _BoardScreenState extends State<BoardScreen> {
                 )
               else
                 Expanded(child: _buildMoveList(theme)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEnginePortraitBody(ThemeData theme, BoxConstraints constraints) {
+    final boardSize = constraints.maxWidth * _engineBoardWidthFactor;
+    final boardBlockHeight =
+        boardSize + _boardSelectorsGap + AppControlSize.compact;
+    final boardTop = ((constraints.maxHeight - boardBlockHeight) / 2).clamp(
+      0.0,
+      double.infinity,
+    );
+    final boardBottom = boardTop + boardBlockHeight;
+
+    return SizedBox.expand(
+      child: Stack(
+        children: [
+          if (_game.moves.children.isNotEmpty && boardTop > 0)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: boardTop,
+              child: _buildMoveList(theme),
+            ),
+          Positioned(
+            top: boardTop,
+            left: 0,
+            right: 0,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildBoardArea(constraints.maxWidth, boardSize),
+                const SizedBox(height: _boardSelectorsGap),
+                _buildSelectors(theme, constraints.maxWidth),
+              ],
+            ),
+          ),
+          if (_engineEnabled && boardBottom < constraints.maxHeight)
+            Positioned(
+              top: boardBottom,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildEvalPanel(theme),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEngineLandscapeBody(
+    ThemeData theme,
+    BoxConstraints constraints,
+  ) {
+    final halfWidth = constraints.maxWidth / 2;
+    const columnOverhead = _boardSelectorsGap + AppControlSize.compact;
+    final boardSize =
+        ((constraints.maxHeight - columnOverhead) * _engineBoardWidthFactor)
+            .clamp(0.0, halfWidth - _selectorSidePadding * 2);
+    final hasMoves = _game.moves.children.isNotEmpty;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: halfWidth,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildBoardArea(halfWidth, boardSize),
+              const SizedBox(height: _boardSelectorsGap),
+              _buildSelectors(theme, halfWidth),
+            ],
+          ),
+        ),
+        SizedBox(
+          width: 1,
+          child: ColoredBox(color: theme.colorScheme.outlineVariant),
+        ),
+        Expanded(
+          child: Column(
+            children: [
+              if (hasMoves) Expanded(child: _buildMoveList(theme)),
+              if (hasMoves && _engineEnabled)
+                SizedBox(
+                  height: 1,
+                  child: ColoredBox(color: theme.colorScheme.outlineVariant),
+                ),
+              if (_engineEnabled) Expanded(child: _buildEvalPanel(theme)),
             ],
           ),
         ),

@@ -302,7 +302,11 @@ class _HomeScreenState extends State<HomeScreen>
             title: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                for (int index = 0; index < _titleChessIcons.length; index++) ...[
+                for (
+                  int index = 0;
+                  index < _titleChessIcons.length;
+                  index++
+                ) ...[
                   Icon(
                     _titleChessIcons[index],
                     size: _titleIconSize,
