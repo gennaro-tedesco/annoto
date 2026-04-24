@@ -575,22 +575,33 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   Widget _buildEvalPanel(ThemeData theme) {
+    final panelColor = Color.alphaBlend(
+      theme.colorScheme.outline.withValues(alpha: 0.06),
+      theme.scaffoldBackgroundColor,
+    );
+
     if (_evaluations.isEmpty) {
-      return const Center(
-        child: SizedBox(
-          height: 14,
-          width: 14,
-          child: CircularProgressIndicator(strokeWidth: 1.5),
+      return ColoredBox(
+        color: panelColor,
+        child: const Center(
+          child: SizedBox(
+            height: 14,
+            width: 14,
+            child: CircularProgressIndicator(strokeWidth: 1.5),
+          ),
         ),
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      children: [
-        for (int i = 0; i < _evaluations.length; i++)
-          _buildEvalLine(theme, _evaluations[i], i),
-      ],
+    return ColoredBox(
+      color: panelColor,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        children: [
+          for (int i = 0; i < _evaluations.length; i++)
+            _buildEvalLine(theme, _evaluations[i], i),
+        ],
+      ),
     );
   }
 
@@ -667,14 +678,7 @@ class _BoardScreenState extends State<BoardScreen> {
                     ),
                   )
                 else
-                  Expanded(
-                    child: Center(
-                      child: SizedBox(
-                        width: boardSize,
-                        child: _buildMoveList(theme),
-                      ),
-                    ),
-                  ),
+                  Expanded(child: _buildMoveList(theme)),
               ],
             );
           },
@@ -1173,6 +1177,10 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   Widget _buildMoveList(ThemeData theme) {
+    final movesPanelColor = Color.alphaBlend(
+      theme.colorScheme.outline.withValues(alpha: 0.06),
+      theme.scaffoldBackgroundColor,
+    );
     final mainLine = _mainLine;
     if (mainLine.isEmpty && _game.moves.children.isEmpty) {
       return const SizedBox.shrink();
@@ -1219,9 +1227,12 @@ class _BoardScreenState extends State<BoardScreen> {
       }
     }
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      children: widgets,
+    return ColoredBox(
+      color: movesPanelColor ?? theme.colorScheme.background,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        children: widgets,
+      ),
     );
   }
 
