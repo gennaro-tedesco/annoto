@@ -240,7 +240,7 @@ class _BoardScreenState extends State<BoardScreen> {
             Divider(color: theme.colorScheme.outlineVariant, height: 1),
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.fromLTRB(0, 8, 0, 32),
                 itemCount: chapterEntries.length,
                 separatorBuilder: (_, _) =>
                     Divider(color: theme.colorScheme.outlineVariant, height: 1),
@@ -250,7 +250,10 @@ class _BoardScreenState extends State<BoardScreen> {
                   final selected = chapterIndex == _currentChapter;
                   return ListTile(
                     selected: selected,
-                    title: Text(_chapterLabel(entry.value, chapterIndex)),
+                    title: Text(
+                      _chapterLabel(entry.value, chapterIndex),
+                      style: theme.textTheme.bodyMedium,
+                    ),
                     onTap: () {
                       Navigator.of(context).pop();
                       _loadChapter(chapterIndex);
@@ -265,9 +268,18 @@ class _BoardScreenState extends State<BoardScreen> {
               child: TextField(
                 controller: _chapterSearchController,
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Search chapter',
-                  prefixIcon: Icon(Icons.search),
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _chapterSearchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            _chapterSearchController.clear();
+                            setState(() {});
+                          },
+                          icon: const Icon(Icons.close, size: 16),
+                        ),
                 ),
               ),
             ),
@@ -278,7 +290,35 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   String _chapterLabel(String pgn, int index) {
-    return chapterLabelForPgn(pgn, index);
+    final tags = parsePgnTags(pgn);
+    return _boardTitle(tags) ?? _boardSubtitle(tags) ?? 'Game ${index + 1}';
+  }
+
+  String? _boardTitle(Map<String, String> headers) {
+    String? tag(String key) {
+      final value = headers[key];
+      return (value == null || value.isEmpty || value.startsWith('?'))
+          ? null
+          : value;
+    }
+
+    final white = tag('White');
+    final black = tag('Black');
+    return (white != null && black != null) ? '$white − $black' : null;
+  }
+
+  String? _boardSubtitle(Map<String, String> headers) {
+    String? tag(String key) {
+      final value = headers[key];
+      return (value == null || value.isEmpty || value.startsWith('?'))
+          ? null
+          : value;
+    }
+
+    final event = tag('Event');
+    final round = tag('Round');
+    final parts = [event, if (round != null) 'Round $round'].nonNulls.toList();
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 
   List<PgnChildNode<PgnNodeData>> _pathTo(PgnChildNode<PgnNodeData> target) {
@@ -427,9 +467,8 @@ class _BoardScreenState extends State<BoardScreen> {
         widgets.add(
           Text(
             isWhite ? '$moveNum. ' : '$moveNum… ',
-            style: theme.textTheme.bodySmall?.copyWith(
+            style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.outline,
-              fontSize: 11,
             ),
           ),
         );
@@ -437,10 +476,7 @@ class _BoardScreenState extends State<BoardScreen> {
       widgets.add(
         Padding(
           padding: const EdgeInsets.only(right: 4),
-          child: Text(
-            _toFigurine(san),
-            style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-          ),
+          child: Text(_toFigurine(san), style: theme.textTheme.bodyMedium),
         ),
       );
     }
@@ -482,7 +518,7 @@ class _BoardScreenState extends State<BoardScreen> {
             child: evalText != null
                 ? Text(
                     evalText,
-                    style: theme.textTheme.bodySmall?.copyWith(
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                       color: theme.colorScheme.primary,
                     ),
@@ -505,8 +541,7 @@ class _BoardScreenState extends State<BoardScreen> {
                         children: [
                           Text(
                             '…',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontSize: 11,
+                            style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.outline,
                             ),
                           ),
@@ -814,9 +849,8 @@ class _BoardScreenState extends State<BoardScreen> {
     final result = tag('Result');
     final event = tag('Event');
     final round = tag('Round');
-    final players = (white != null && black != null) ? '$white − $black' : null;
-    final parts = [event, if (round != null) 'Round $round'].nonNulls.toList();
-    final tournament = parts.isEmpty ? null : parts.join(' · ');
+    final players = _boardTitle(_game.headers);
+    final tournament = _boardSubtitle(_game.headers);
 
     final metadataColumn = Column(
       mainAxisSize: MainAxisSize.min,
@@ -1309,7 +1343,7 @@ class _BoardScreenState extends State<BoardScreen> {
             padding: const EdgeInsets.only(left: 4, right: 1),
             child: Text(
               isWhiteTurn ? '$moveNumber.' : '$moveNumber…',
-              style: theme.textTheme.bodySmall?.copyWith(
+              style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.outline,
               ),
             ),
@@ -1362,7 +1396,7 @@ class _BoardScreenState extends State<BoardScreen> {
             : null,
         child: Text(
           _toFigurine(san),
-          style: theme.textTheme.bodyMedium?.copyWith(
+          style: theme.textTheme.bodyLarge?.copyWith(
             color: active ? theme.colorScheme.onPrimary : null,
             fontWeight: active ? FontWeight.w600 : null,
           ),
@@ -1398,7 +1432,7 @@ class _BoardScreenState extends State<BoardScreen> {
                   width: 36,
                   child: Text(
                     startsOnBlack ? '$moveNumber...' : '$moveNumber.',
-                    style: theme.textTheme.bodySmall?.copyWith(
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.outline,
                     ),
                     textAlign: TextAlign.right,
@@ -1444,7 +1478,7 @@ class _BoardScreenState extends State<BoardScreen> {
             : null,
         child: Text(
           _toFigurine(san),
-          style: theme.textTheme.bodyMedium?.copyWith(
+          style: theme.textTheme.bodyLarge?.copyWith(
             color: active ? theme.colorScheme.onPrimary : null,
             fontWeight: active ? FontWeight.w600 : null,
           ),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:annoto/app/ai_models.dart';
 import 'package:annoto/app/app_state.dart';
@@ -59,6 +60,16 @@ class _HomeScreenState extends State<HomeScreen>
   static const _collectionChipIconSize = 16.0;
   static const _collectionChipGap = 6.0;
   static const _collectionChipSpacing = 12.0;
+  static const _backgroundIconSize = 220.0;
+  static const _backgroundIconOpacity = 0.08;
+  static const _backgroundChessIcons = [
+    LucideIcons.chess_bishop,
+    LucideIcons.chess_king,
+    LucideIcons.chess_knight,
+    LucideIcons.chess_pawn,
+    LucideIcons.chess_queen,
+    LucideIcons.chess_rook,
+  ];
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<Scoresheet> _scoresheets = [];
@@ -75,10 +86,14 @@ class _HomeScreenState extends State<HomeScreen>
   String? _selectedRound;
   String? _selectedWhitePlayer;
   String? _selectedBlackPlayer;
+  late final IconData _backgroundChessIcon;
 
   @override
   void initState() {
     super.initState();
+    final random = Random();
+    _backgroundChessIcon =
+        _backgroundChessIcons[random.nextInt(_backgroundChessIcons.length)];
     _filterSpinController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -292,6 +307,19 @@ class _HomeScreenState extends State<HomeScreen>
           body: Stack(
             clipBehavior: Clip.none,
             children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(
+                    child: Icon(
+                      _backgroundChessIcon,
+                      size: _backgroundIconSize,
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: _backgroundIconOpacity,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               Column(
                 children: [
                   Expanded(child: _buildHomeTab2(context)),
