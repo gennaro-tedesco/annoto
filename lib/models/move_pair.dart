@@ -12,15 +12,30 @@ const kPgnTagOrder = [
 ];
 
 class MovePair {
-  MovePair({required this.number, String white = '', String black = ''})
-    : white = TextEditingController(text: white),
-      black = TextEditingController(text: black),
-      whiteFocus = FocusNode(),
-      blackFocus = FocusNode();
+  MovePair({
+    required this.number,
+    String white = '',
+    String black = '',
+    List<String>? whiteStartingComments,
+    List<String>? whiteComments,
+    List<String>? blackStartingComments,
+    List<String>? blackComments,
+  }) : white = TextEditingController(text: white),
+       black = TextEditingController(text: black),
+       whiteStartingComments = List.unmodifiable(whiteStartingComments ?? []),
+       whiteComments = List.unmodifiable(whiteComments ?? []),
+       blackStartingComments = List.unmodifiable(blackStartingComments ?? []),
+       blackComments = List.unmodifiable(blackComments ?? []),
+       whiteFocus = FocusNode(),
+       blackFocus = FocusNode();
 
   int number;
   final TextEditingController white;
   final TextEditingController black;
+  final List<String> whiteStartingComments;
+  final List<String> whiteComments;
+  final List<String> blackStartingComments;
+  final List<String> blackComments;
   final FocusNode whiteFocus;
   final FocusNode blackFocus;
 
@@ -32,11 +47,31 @@ class MovePair {
   }
 }
 
+List<PgnComment> parsePgnComments(List<String>? comments) {
+  return (comments ?? const <String>[])
+      .map(PgnComment.fromPgn)
+      .toList(growable: false);
+}
+
+List<String> displayPgnCommentTexts(List<String>? comments) {
+  return parsePgnComments(comments)
+      .map((comment) => comment.text?.trim())
+      .whereType<String>()
+      .where((comment) => comment.isNotEmpty)
+      .toList(growable: false);
+}
+
+List<String> movePairCommentTexts(MovePair move) {
+  return [
+    ...displayPgnCommentTexts(move.whiteStartingComments),
+    ...displayPgnCommentTexts(move.whiteComments),
+    ...displayPgnCommentTexts(move.blackStartingComments),
+    ...displayPgnCommentTexts(move.blackComments),
+  ];
+}
+
 PgnGame<PgnNodeData> parsePgnGame(String pgn) =>
     PgnGame.parsePgn(pgn, initHeaders: PgnGame.emptyHeaders);
-
-List<String> extractMainlineSans(String pgn) =>
-    parsePgnGame(pgn).moves.mainline().map((node) => node.san).toList();
 
 Map<String, String> parsePgnTags(String pgn) {
   final headers = parsePgnGame(pgn).headers;
@@ -68,17 +103,24 @@ List<MovePair> parsePgn(
   for (final tag in kPgnTagOrder) {
     headerControllers[tag] = TextEditingController(text: headers[tag] ?? '?');
   }
-  return _movePairsFromSans(extractMainlineSans(firstGame));
+  return _movePairsFromGame(parsePgnGame(firstGame));
 }
 
-List<MovePair> _movePairsFromSans(List<String> sans) {
+List<MovePair> _movePairsFromGame(PgnGame<PgnNodeData> game) {
+  final mainline = game.moves.mainline().toList();
   final moves = <MovePair>[];
-  for (var i = 0; i < sans.length; i += 2) {
+  for (var i = 0; i < mainline.length; i += 2) {
+    final whiteNode = mainline[i];
+    final blackNode = i + 1 < mainline.length ? mainline[i + 1] : null;
     moves.add(
       MovePair(
         number: (i ~/ 2) + 1,
-        white: sans[i],
-        black: i + 1 < sans.length ? sans[i + 1] : '',
+        white: whiteNode.san,
+        black: blackNode?.san ?? '',
+        whiteStartingComments: whiteNode.startingComments,
+        whiteComments: whiteNode.comments,
+        blackStartingComments: blackNode?.startingComments,
+        blackComments: blackNode?.comments,
       ),
     );
   }
@@ -96,13 +138,27 @@ String serialisePgn(
   }
   buffer.writeln();
   for (final move in moves) {
+    _writeComments(buffer, move.whiteStartingComments);
     buffer.write('${move.number}. ${move.white.text}');
-    if (move.black.text.isNotEmpty) buffer.write(' ${move.black.text}');
+    _writeComments(buffer, move.whiteComments);
+    if (move.black.text.isNotEmpty) {
+      _writeComments(buffer, move.blackStartingComments);
+      buffer.write(' ${move.black.text}');
+      _writeComments(buffer, move.blackComments);
+    }
     buffer.write(' ');
   }
   final result = headerControllers['Result']?.text.trim() ?? '*';
   buffer.write(result);
   return buffer.toString().trim();
+}
+
+void _writeComments(StringBuffer buffer, List<String> comments) {
+  for (final comment in comments) {
+    final trimmed = comment.trim();
+    if (trimmed.isEmpty) continue;
+    buffer.write('{ $trimmed } ');
+  }
 }
 
 List<String> splitPgnGames(String pgn) {

@@ -8,6 +8,7 @@ import 'package:annoto/features/settings/engine_settings_screen.dart';
 import 'package:annoto/services/chess_engine_service.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
+import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 
@@ -38,6 +39,13 @@ const boardColorSchemes = <(String, ChessboardColorScheme)>[
   ('Wood 3', ChessboardColorScheme.wood3),
   ('Wood 4', ChessboardColorScheme.wood4),
 ];
+
+const _annotationColors = <CommentShapeColor, Color>{
+  CommentShapeColor.green: Color(0xAA4CAF50),
+  CommentShapeColor.red: Color(0xAAEF5350),
+  CommentShapeColor.yellow: Color(0xAAFBC02D),
+  CommentShapeColor.blue: Color(0xAA42A5F5),
+};
 
 ChessboardColorScheme _schemeByLabel(String label) =>
     boardColorSchemes
@@ -743,6 +751,8 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   Widget _buildChessboard(double boardSize) {
+    final shapes = _currentShapes;
+
     return Chessboard(
       size: boardSize,
       fen: _currentPosition.fen,
@@ -753,6 +763,7 @@ class _BoardScreenState extends State<BoardScreen> {
         pieceAssets: _pieceSet.assets,
         dragFeedbackScale: 1.0,
       ),
+      shapes: shapes.isEmpty ? null : shapes,
       game: GameData(
         playerSide: PlayerSide.both,
         sideToMove: _currentPosition.turn,
@@ -1254,6 +1265,10 @@ class _BoardScreenState extends State<BoardScreen> {
       moveNumber: rowIndex + 1,
       whiteSan: wNode?.data.san,
       blackSan: bNode?.data.san,
+      whiteStartingComments: wNode?.data.startingComments,
+      whiteComments: wNode?.data.comments,
+      blackStartingComments: bNode?.data.startingComments,
+      blackComments: bNode?.data.comments,
       isWhiteActive:
           _onMainLine &&
           wNode != null &&
@@ -1364,6 +1379,7 @@ class _BoardScreenState extends State<BoardScreen> {
 
       final node = nodes[j];
       final isActive = _path.isNotEmpty && _path.last == node;
+      tokens.addAll(_commentTokens(theme, node.data.startingComments));
       tokens.add(
         _buildInlineMoveTile(
           theme,
@@ -1372,6 +1388,7 @@ class _BoardScreenState extends State<BoardScreen> {
           () => _navigate(_pathTo(node)),
         ),
       );
+      tokens.addAll(_commentTokens(theme, node.data.comments));
     }
 
     return Padding(
@@ -1423,11 +1440,22 @@ class _BoardScreenState extends State<BoardScreen> {
     bool startsOnBlack = false,
     required String? whiteSan,
     required String? blackSan,
+    List<String>? whiteStartingComments,
+    List<String>? whiteComments,
+    List<String>? blackStartingComments,
+    List<String>? blackComments,
     required bool isWhiteActive,
     required bool isBlackActive,
     required VoidCallback? onWhiteTap,
     required VoidCallback? onBlackTap,
   }) {
+    final comments = [
+      ...displayPgnCommentTexts(whiteStartingComments),
+      ...displayPgnCommentTexts(whiteComments),
+      ...displayPgnCommentTexts(blackStartingComments),
+      ...displayPgnCommentTexts(blackComments),
+    ];
+
     return LayoutBuilder(
       key: key,
       builder: (context, constraints) {
@@ -1435,40 +1463,125 @@ class _BoardScreenState extends State<BoardScreen> {
         final tileWidth = ((constraints.maxWidth - 64) / 2).clamp(0.0, 96.0);
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
-          child: Center(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 36,
-                  child: Text(
-                    startsOnBlack ? '$moveNumber...' : '$moveNumber.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.outline,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 36,
+                      child: Text(
+                        startsOnBlack ? '$moveNumber...' : '$moveNumber.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
+                        textAlign: TextAlign.right,
+                      ),
                     ),
-                    textAlign: TextAlign.right,
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: tileWidth,
+                      child: whiteSan != null && !startsOnBlack
+                          ? _moveTile(
+                              theme,
+                              whiteSan,
+                              isWhiteActive,
+                              onWhiteTap!,
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    const SizedBox(width: 4),
+                    SizedBox(
+                      width: tileWidth,
+                      child: blackSan != null
+                          ? _moveTile(
+                              theme,
+                              blackSan,
+                              isBlackActive,
+                              onBlackTap!,
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+              if (comments.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(44, 6, 0, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: comments
+                        .map(
+                          (comment) => Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: Text(
+                              '{ $comment }',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
                   ),
                 ),
-                const SizedBox(width: 8),
-                SizedBox(
-                  width: tileWidth,
-                  child: whiteSan != null && !startsOnBlack
-                      ? _moveTile(theme, whiteSan, isWhiteActive, onWhiteTap!)
-                      : const SizedBox.shrink(),
-                ),
-                const SizedBox(width: 4),
-                SizedBox(
-                  width: tileWidth,
-                  child: blackSan != null
-                      ? _moveTile(theme, blackSan, isBlackActive, onBlackTap!)
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ),
+            ],
           ),
         );
       },
     );
+  }
+
+  List<Widget> _commentTokens(ThemeData theme, List<String>? comments) {
+    return displayPgnCommentTexts(comments)
+        .map(
+          (comment) => Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Text(
+              '{ $comment }',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        )
+        .toList();
+  }
+
+  ISet<Shape> get _currentShapes {
+    if (_path.isEmpty) {
+      return const ISetConst({});
+    }
+
+    final node = _path.last.data;
+    final shapes = <Shape>{};
+    for (final parsedComment in [
+      ...parsePgnComments(node.startingComments),
+      ...parsePgnComments(node.comments),
+    ]) {
+      for (final shape in parsedComment.shapes) {
+        final boardShape = _toBoardShape(shape);
+        if (boardShape != null) {
+          shapes.add(boardShape);
+        }
+      }
+    }
+    return shapes.lock;
+  }
+
+  Shape? _toBoardShape(PgnCommentShape shape) {
+    final color = _annotationColors[shape.color];
+    if (color == null) {
+      return null;
+    }
+
+    if (shape.from == shape.to) {
+      return Circle(color: color, orig: shape.from);
+    }
+
+    return Arrow(color: color, orig: shape.from, dest: shape.to);
   }
 
   Widget _moveTile(

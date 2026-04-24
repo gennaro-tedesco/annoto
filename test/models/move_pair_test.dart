@@ -32,6 +32,18 @@ void main() {
     expect(moves[8].black.text, 'Ne8');
     expect(moves[9].white.text, 'g4');
     expect(moves[9].black.text, 'f5');
+    expect(moves[7].whiteComments, ['only after Nc6 do we push d5']);
+    expect(moves[8].whiteComments, ['here black has two choices']);
+  });
+
+  test('serialisePgn preserves mainline comments', () {
+    final headerControllers = <String, TextEditingController>{};
+
+    final moves = parsePgn(_annotatedPgn, headerControllers);
+    final serialised = serialisePgn(headerControllers, moves);
+
+    expect(serialised, contains('{ only after Nc6 do we push d5 }'));
+    expect(serialised, contains('{ here black has two choices }'));
   });
 
   test('splitPgnGames splits multi-game PGN via dartchess parser', () {
