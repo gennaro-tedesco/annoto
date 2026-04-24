@@ -342,6 +342,8 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     final blackInvalid =
         blackPlyIndex < _plyValidity.length && !_plyValidity[blackPlyIndex];
 
+    final comments = _commentTexts(move);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Dismissible(
@@ -373,117 +375,154 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           }
           return false;
         },
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 36,
-              child: Text(
-                '${move.number}.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-            Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  setState(() => _editingMove = move);
-                  move.whiteFocus.requestFocus();
-                },
-                child: AbsorbPointer(
-                  absorbing: !isEditing,
-                  child: TextField(
-                    focusNode: move.whiteFocus,
-                    readOnly: !isEditing,
-                    controller: move.white,
-                    onChanged: (_) => _runValidation(),
-                    style: whiteInvalid
-                        ? TextStyle(color: theme.colorScheme.error)
-                        : null,
-                    decoration: InputDecoration(
-                      hintText: 'White',
-                      hintStyle: hintStyle,
-                      isDense: true,
-                      constraints: BoxConstraints(
-                        minHeight: _inputCardsHeight,
-                        maxHeight: _inputCardsHeight,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      enabledBorder: whiteInvalid
-                          ? OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                              ),
-                            )
-                          : null,
-                      focusedBorder: whiteInvalid
-                          ? OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                              ),
-                            )
-                          : null,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 36,
+                  child: Text(
+                    '${move.number}.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  setState(() => _editingMove = move);
-                  move.blackFocus.requestFocus();
-                },
-                child: AbsorbPointer(
-                  absorbing: !isEditing,
-                  child: TextField(
-                    focusNode: move.blackFocus,
-                    readOnly: !isEditing,
-                    controller: move.black,
-                    onChanged: (_) => _runValidation(),
-                    style: blackInvalid
-                        ? TextStyle(color: theme.colorScheme.error)
-                        : null,
-                    decoration: InputDecoration(
-                      hintText: 'Black',
-                      hintStyle: hintStyle,
-                      isDense: true,
-                      constraints: BoxConstraints(
-                        minHeight: _inputCardsHeight,
-                        maxHeight: _inputCardsHeight,
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _editingMove = move);
+                      move.whiteFocus.requestFocus();
+                    },
+                    child: AbsorbPointer(
+                      absorbing: !isEditing,
+                      child: TextField(
+                        focusNode: move.whiteFocus,
+                        readOnly: !isEditing,
+                        controller: move.white,
+                        onChanged: (_) => _runValidation(),
+                        style: whiteInvalid
+                            ? TextStyle(color: theme.colorScheme.error)
+                            : null,
+                        decoration: InputDecoration(
+                          hintText: 'White',
+                          hintStyle: hintStyle,
+                          isDense: true,
+                          constraints: BoxConstraints(
+                            minHeight: _inputCardsHeight,
+                            maxHeight: _inputCardsHeight,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          enabledBorder: whiteInvalid
+                              ? OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: theme.colorScheme.error,
+                                  ),
+                                )
+                              : null,
+                          focusedBorder: whiteInvalid
+                              ? OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: theme.colorScheme.error,
+                                  ),
+                                )
+                              : null,
+                        ),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      enabledBorder: blackInvalid
-                          ? OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                              ),
-                            )
-                          : null,
-                      focusedBorder: blackInvalid
-                          ? OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                              ),
-                            )
-                          : null,
                     ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _editingMove = move);
+                      move.blackFocus.requestFocus();
+                    },
+                    child: AbsorbPointer(
+                      absorbing: !isEditing,
+                      child: TextField(
+                        focusNode: move.blackFocus,
+                        readOnly: !isEditing,
+                        controller: move.black,
+                        onChanged: (_) => _runValidation(),
+                        style: blackInvalid
+                            ? TextStyle(color: theme.colorScheme.error)
+                            : null,
+                        decoration: InputDecoration(
+                          hintText: 'Black',
+                          hintStyle: hintStyle,
+                          isDense: true,
+                          constraints: BoxConstraints(
+                            minHeight: _inputCardsHeight,
+                            maxHeight: _inputCardsHeight,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          enabledBorder: blackInvalid
+                              ? OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: theme.colorScheme.error,
+                                  ),
+                                )
+                              : null,
+                          focusedBorder: blackInvalid
+                              ? OutlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: theme.colorScheme.error,
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 36),
+              ],
             ),
-            const SizedBox(width: 36),
+            if (comments.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(36, 6, 36, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: comments
+                      .map(
+                        (comment) => Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Text(
+                            '{ $comment }',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
           ],
         ),
       ),
     );
+  }
+
+  List<String> _commentTexts(MovePair move) {
+    return [
+          ...move.whiteStartingComments,
+          ...move.whiteComments,
+          ...move.blackStartingComments,
+          ...move.blackComments,
+        ]
+        .map((comment) => comment.trim())
+        .where((comment) => comment.isNotEmpty)
+        .toList();
   }
 }
