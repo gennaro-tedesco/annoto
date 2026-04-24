@@ -1,5 +1,6 @@
 import 'package:annoto/features/engine/engine_screen.dart';
 import 'package:annoto/features/home/home_screen.dart';
+import 'package:annoto/features/lichess/lichess_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 
@@ -24,7 +25,7 @@ class _AppTabShellState extends State<AppTabShell> {
   late final List<Widget> _tabs = const [
     HomeScreen(),
     _PlaceholderTabScreen(title: _engineLabel),
-    _PlaceholderTabScreen(title: _lichessLabel),
+    LichessScreen(),
   ];
 
   void _onDestinationSelected(int index) {
@@ -34,6 +35,7 @@ class _AppTabShellState extends State<AppTabShell> {
       ).push(MaterialPageRoute(builder: (_) => const EngineScreen()));
       return;
     }
+
     setState(() => _selectedTabIndex = index);
   }
 

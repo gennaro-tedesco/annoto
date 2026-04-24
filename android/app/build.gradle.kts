@@ -40,14 +40,19 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        manifestPlaceholders.putAll(
+            mapOf("appAuthRedirectScheme" to "com.example.annoto")
+        )
     }
 
     buildTypes {
         release {
-            signingConfig = if (keyPropertiesFile.exists())
+            signingConfig = if (keyPropertiesFile.exists()) {
                 signingConfigs.getByName("release")
-            else
+            } else {
                 signingConfigs.getByName("debug")
+            }
         }
     }
 }
