@@ -114,9 +114,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadScoresheets() async {
     final scoresheets = await scoresheetRepository.getAll();
+
     if (!mounted) return;
+
     setState(() {
-      _scoresheets = scoresheets;
+      _scoresheets = scoresheets
+          .where((scoresheet) => !scoresheet.filename.startsWith('lichess_'))
+          .toList();
       _filterData = _buildFilterData();
       _clearMissingFilters(_filterData);
     });
@@ -310,9 +314,7 @@ class _HomeScreenState extends State<HomeScreen>
                   Icon(
                     _titleChessIcons[index],
                     size: _titleIconSize,
-                    color: theme.colorScheme.onSurfaceVariant.withValues(
-                      alpha: _backgroundIconOpacity,
-                    ),
+                    color: theme.colorScheme.primary,
                   ),
                   if (index < _titleChessIcons.length - 1)
                     const SizedBox(width: _titleIconSpacing),

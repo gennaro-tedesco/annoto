@@ -9,6 +9,7 @@ abstract final class AppIconSize {
 abstract final class AppControlSize {
   static const double toolbarButton = 48;
   static const double compact = 32;
+  static const double tabBar = 56;
 }
 
 abstract final class AppFieldSize {
