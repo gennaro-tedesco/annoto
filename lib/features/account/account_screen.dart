@@ -20,6 +20,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
   bool _loading = false;
   bool _lichessLoading = false;
+  bool _lichessConnected = false;
 
   @override
   void initState() {
@@ -40,7 +41,10 @@ class _AccountScreenState extends State<AccountScreen> {
 
     if (!mounted || username == null) return;
 
-    _lichessUsernameController.text = username;
+    setState(() {
+      _lichessUsernameController.text = username;
+      _lichessConnected = true;
+    });
   }
 
   @override
@@ -51,6 +55,7 @@ class _AccountScreenState extends State<AccountScreen> {
     final fillColor =
         theme.inputDecorationTheme.fillColor ??
         theme.colorScheme.surfaceContainerHighest;
+    const accountPadding = 96.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -67,76 +72,90 @@ class _AccountScreenState extends State<AccountScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
-        child: session.isAuthenticated
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    session.email ?? '',
-                    style: theme.textTheme.bodyLarge,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: _loading ? null : () => _signOut(appState),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Sign out'),
-                  ),
-                  const SizedBox(height: 32),
-                  TextField(
-                    controller: _lichessUsernameController,
-                    autocorrect: false,
-                    decoration: const InputDecoration(
-                      hintText: 'Lichess username',
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: _lichessLoading ? null : _authenticateLichess,
-                    child: _lichessLoading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Connect Lichess'),
-                  ),
-                ],
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    autocorrect: false,
-                    decoration: const InputDecoration(hintText: 'Email'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(hintText: 'Password'),
-                    onSubmitted: (_) => _signIn(appState),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: _loading ? null : () => _signIn(appState),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Sign in'),
-                  ),
-                ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (session.isAuthenticated) ...[
+              Text(
+                session.email ?? '',
+                style: theme.textTheme.bodyLarge,
+                textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _loading ? null : () => _signOut(appState),
+                child: _loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Sign out'),
+              ),
+            ] else ...[
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                decoration: const InputDecoration(hintText: 'Email'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(hintText: 'Password'),
+                onSubmitted: (_) => _signIn(appState),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _loading ? null : () => _signIn(appState),
+                child: _loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Sign in'),
+              ),
+            ],
+            const SizedBox(height: accountPadding),
+            const Divider(),
+            const SizedBox(height: 24),
+            if (_lichessConnected)
+              Text(
+                _lichessUsernameController.text,
+                style: theme.textTheme.bodyLarge,
+                textAlign: TextAlign.center,
+              )
+            else
+              TextField(
+                controller: _lichessUsernameController,
+                autocorrect: false,
+                decoration: const InputDecoration(
+                  hintText: 'Lichess username',
+                ),
+              ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: _lichessLoading
+                  ? null
+                  : _lichessConnected
+                      ? _disconnectLichess
+                      : _authenticateLichess,
+              child: _lichessLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(
+                      _lichessConnected
+                          ? 'Sign out of Lichess'
+                          : 'Connect Lichess',
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -153,7 +172,27 @@ class _AccountScreenState extends State<AccountScreen> {
 
     try {
       await lichessService.authenticate(username);
-      NotificationService.showError('Lichess connected.');
+      if (mounted) setState(() => _lichessConnected = true);
+      NotificationService.showInfo('Lichess connected.');
+    } catch (e) {
+      NotificationService.showError(e.toString());
+    } finally {
+      if (mounted) setState(() => _lichessLoading = false);
+    }
+  }
+
+  Future<void> _disconnectLichess() async {
+    setState(() => _lichessLoading = true);
+
+    try {
+      await lichessService.disconnect();
+      if (mounted) {
+        setState(() {
+          _lichessConnected = false;
+          _lichessUsernameController.clear();
+        });
+      }
+      NotificationService.showInfo('Lichess disconnected.');
     } catch (e) {
       NotificationService.showError(e.toString());
     } finally {

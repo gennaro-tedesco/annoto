@@ -1,3 +1,4 @@
+import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/features/engine/engine_screen.dart';
 import 'package:annoto/features/home/home_screen.dart';
 import 'package:annoto/features/lichess/lichess_screen.dart';
@@ -15,17 +16,19 @@ class _AppTabShellState extends State<AppTabShell> {
   static const _homeTabIndex = 0;
   static const _engineTabIndex = 1;
   static const _lichessTabIndex = 2;
-  static const _tabHeight = 56.0;
+  static const _tabHeight = AppControlSize.tabBar;
   static const _homeLabel = 'home';
   static const _engineLabel = 'engine';
   static const _lichessLabel = 'lichess';
 
   int _selectedTabIndex = _homeTabIndex;
 
-  late final List<Widget> _tabs = const [
-    HomeScreen(),
-    _PlaceholderTabScreen(title: _engineLabel),
-    LichessScreen(),
+  final _lichessKey = GlobalKey<LichessScreenState>();
+
+  late final List<Widget> _tabs = [
+    const HomeScreen(),
+    const _PlaceholderTabScreen(title: _engineLabel),
+    LichessScreen(key: _lichessKey),
   ];
 
   void _onDestinationSelected(int index) {
@@ -34,6 +37,10 @@ class _AppTabShellState extends State<AppTabShell> {
         context,
       ).push(MaterialPageRoute(builder: (_) => const EngineScreen()));
       return;
+    }
+
+    if (index == _lichessTabIndex) {
+      _lichessKey.currentState?.refresh();
     }
 
     setState(() => _selectedTabIndex = index);

@@ -35,6 +35,11 @@ class LichessService {
     return _storage.read(key: _usernameKey);
   }
 
+  Future<void> disconnect() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _usernameKey);
+  }
+
   Future<void> authenticate(String username) async {
     final result = await _appAuth.authorizeAndExchangeCode(
       AuthorizationTokenRequest(
@@ -112,7 +117,7 @@ class LichessService {
     }
 
     final response = await _dio.get<String>(
-      'https://lichess.org/study/$studyId.pgn',
+      'https://lichess.org/api/study/$studyId.pgn',
       options: Options(
         responseType: ResponseType.plain,
         headers: {'Authorization': 'Bearer $token'},
