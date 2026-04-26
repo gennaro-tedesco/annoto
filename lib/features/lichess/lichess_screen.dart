@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/features/board/board_screen.dart';
+import 'package:annoto/features/settings/settings_screen.dart';
 import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/services/lichess_service.dart';
@@ -35,6 +36,7 @@ class LichessScreen extends StatefulWidget {
 }
 
 class LichessScreenState extends State<LichessScreen> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late Future<List<LichessStudy>> _studiesFuture;
   late final List<IconData> _titleIcons;
 
@@ -46,8 +48,12 @@ class LichessScreenState extends State<LichessScreen> {
   }
 
   void refresh() => setState(() {
-        _studiesFuture = lichessService.getStudies();
-      });
+    _studiesFuture = lichessService.getStudies();
+  });
+
+  void _openSettings() {
+    _scaffoldKey.currentState?.openEndDrawer();
+  }
 
   Future<void> _openStudy(
     BuildContext context,
@@ -80,116 +86,154 @@ class LichessScreenState extends State<LichessScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewPadding = MediaQuery.viewPaddingOf(context);
-        final appBarHeight = kToolbarHeight + viewPadding.top;
+        final toolbarHeight = theme.appBarTheme.toolbarHeight ?? kToolbarHeight;
+        final appBarHeight = toolbarHeight + viewPadding.top;
         final tabBarHeight = AppControlSize.tabBar + viewPadding.bottom;
         final listHeight = constraints.maxHeight - appBarHeight - tabBarHeight;
 
-        return Column(
-          children: [
-            AppBar(
-          centerTitle: true,
-          automaticallyImplyLeading: false,
-          title: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (int i = 0; i < _titleIcons.length; i++) ...[
-                Icon(
-                  _titleIcons[i],
-                  size: _titleIconSize,
-                  color: theme.colorScheme.primary,
-                ),
-                if (i < _titleIcons.length - 1)
-                  const SizedBox(width: _titleIconSpacing),
-              ],
-            ],
+        return Scaffold(
+          key: _scaffoldKey,
+          endDrawer: SizedBox(
+            width: (MediaQuery.sizeOf(context).width * 0.7).clamp(0.0, 320.0),
+            child: const Drawer(child: SettingsScreen()),
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh',
-              onPressed: refresh,
-            ),
-            const SizedBox(width: 4),
-          ],
-        ),
-            SizedBox(
-              height: listHeight,
-              child: FutureBuilder<List<LichessStudy>>(
-                future: _studiesFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError) {
-                    final isNotConnected = snapshot.error
-                        .toString()
-                        .contains('username missing');
-                    if (isNotConnected) {
-                      return Stack(
+          body: Column(
+            children: [
+              Material(
+                color: theme.appBarTheme.backgroundColor,
+                child: SizedBox(
+                  height: appBarHeight,
+                  child: Padding(
+                    padding: EdgeInsets.only(top: viewPadding.top),
+                    child: SizedBox(
+                      height: toolbarHeight,
+                      child: Stack(
+                        alignment: Alignment.center,
                         children: [
-                          Positioned.fill(
-                            child: IgnorePointer(
-                              child: Center(
-                                child: Icon(
-                                  LucideIcons.chess_knight,
-                                  size: 220,
-                                  color: theme.colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.08),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (int i = 0; i < _titleIcons.length; i++) ...[
+                                Icon(
+                                  _titleIcons[i],
+                                  size: _titleIconSize,
+                                  color: theme.colorScheme.primary,
                                 ),
+                                if (i < _titleIcons.length - 1)
+                                  const SizedBox(width: _titleIconSpacing),
+                              ],
+                            ],
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: IconTheme.merge(
+                              data:
+                                  theme.appBarTheme.actionsIconTheme ??
+                                  const IconThemeData(),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.refresh),
+                                    tooltip: 'Refresh',
+                                    onPressed: refresh,
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.settings_outlined),
+                                    tooltip: 'Settings',
+                                    onPressed: _openSettings,
+                                  ),
+                                  const SizedBox(width: 4),
+                                ],
                               ),
                             ),
                           ),
-                          Center(
-                            child: Text(
-                              'Connect your Lichess account',
-                              style: theme.textTheme.bodyMedium,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
                         ],
-                      );
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: listHeight,
+                child: FutureBuilder<List<LichessStudy>>(
+                  future: _studiesFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
                     }
-                    return Center(
-                      child: Text(
-                        snapshot.error.toString(),
-                        style: theme.textTheme.bodyMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                    );
-                  }
 
-                  final studies = snapshot.data ?? [];
-
-                  if (studies.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'No Lichess studies found',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    );
-                  }
-
-                  return ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: studies.length,
-                    itemBuilder: (context, index) {
-                      final study = studies[index];
-                      return Padding(
-                        padding:
-                            const EdgeInsets.only(bottom: _listItemSpacing),
-                        child: _StudyCard(
-                          study: study,
-                          onTap: (cachedPgn) =>
-                              _openStudy(context, study, cachedPgn),
+                    if (snapshot.hasError) {
+                      final isNotConnected = snapshot.error.toString().contains(
+                        'username missing',
+                      );
+                      if (isNotConnected) {
+                        return Stack(
+                          children: [
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: Center(
+                                  child: Icon(
+                                    LucideIcons.chess_knight,
+                                    size: 220,
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.08),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Center(
+                              child: Text(
+                                'Connect your Lichess account',
+                                style: theme.textTheme.bodyMedium,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                      return Center(
+                        child: Text(
+                          snapshot.error.toString(),
+                          style: theme.textTheme.bodyMedium,
+                          textAlign: TextAlign.center,
                         ),
                       );
-                    },
-                  );
-                },
+                    }
+
+                    final studies = snapshot.data ?? [];
+
+                    if (studies.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No Lichess studies found',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: studies.length,
+                      itemBuilder: (context, index) {
+                        final study = studies[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: _listItemSpacing,
+                          ),
+                          child: _StudyCard(
+                            study: study,
+                            onTap: (cachedPgn) =>
+                                _openStudy(context, study, cachedPgn),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );

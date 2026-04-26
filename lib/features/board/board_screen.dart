@@ -792,6 +792,7 @@ class _BoardScreenState extends State<BoardScreen> {
             ? _engineAnimationDuration
             : _boardAnimationDuration,
         dragFeedbackScale: 1.0,
+        dragTargetKind: DragTargetKind.none,
       ),
       shapes: shapes.isEmpty ? null : shapes,
       game: GameData(
@@ -1089,8 +1090,10 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   Widget _buildEvalGauge(ThemeData theme) {
+    const maxGaugePawns = 7;
     double whiteRatio = 0.5;
     int depth = 0;
+    String? evalText;
 
     if (_evaluations.isNotEmpty) {
       final eval = _evaluations.first;
@@ -1100,61 +1103,68 @@ class _BoardScreenState extends State<BoardScreen> {
             ? eval.mate!
             : -eval.mate!;
         whiteRatio = mate > 0 ? 1.0 : 0.0;
+        evalText = '#$mate';
       } else if (eval.cp != null) {
         final cp = _cpFromWhite(eval.cp!);
-        whiteRatio = (cp.clamp(-700, 700) + 700) / 1400.0;
+        final maxGaugeCentipawns = maxGaugePawns * 100;
+        whiteRatio =
+            (cp.clamp(-maxGaugeCentipawns, maxGaugeCentipawns) +
+                maxGaugeCentipawns) /
+            (maxGaugeCentipawns * 2);
+        final pawns = cp / 100.0;
+        evalText = pawns >= 0
+            ? '+${pawns.toStringAsFixed(2)}'
+            : pawns.toStringAsFixed(2);
       }
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final w = constraints.maxWidth;
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: SizedBox(
-                height: 8,
-                width: w,
-                child: Stack(
-                  children: [
-                    Container(color: Colors.black87),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeOut,
-                      width: w * whiteRatio,
-                      color: Colors.white,
-                    ),
-                    Positioned(
-                      left: w / 2 - 0.5,
-                      top: 0,
-                      bottom: 0,
-                      child: Container(width: 1, color: Colors.grey.shade500),
-                    ),
-                  ],
-                ),
+    final labelParts = [
+      if (evalText != null) evalText,
+      if (depth > 0) 'd$depth',
+    ];
+    final gaugeLabel = labelParts.join(' / ');
+    final labelTextStyle = theme.textTheme.labelSmall?.copyWith(
+      fontSize: 10,
+      fontWeight: FontWeight.w600,
+      color: theme.colorScheme.primary,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(color: Colors.black87),
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: w * whiteRatio,
+                child: const ColoredBox(color: Colors.white),
               ),
-            );
-          },
-        ),
-        if (depth > 0)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              'd$depth',
-              style: theme.textTheme.labelSmall?.copyWith(
-                fontSize: 9,
-                color: theme.colorScheme.onSurface,
+              Positioned(
+                left: w / 2 - 0.5,
+                top: 0,
+                bottom: 0,
+                child: Container(width: 1, color: Colors.grey.shade500),
               ),
-            ),
+              if (gaugeLabel.isNotEmpty)
+                Center(child: Text(gaugeLabel, style: labelTextStyle)),
+            ],
           ),
-      ],
+        );
+      },
     );
   }
 
   Widget _buildSelectors(ThemeData theme, double boardSize) {
     const buttonSize = AppControlSize.compact;
+    const engineGaugeHeight = buttonSize * 0.6;
     const primaryIconSize = AppIconSize.inlineAction;
     const secondaryIconSize = AppIconSize.smallStatus;
     const buttonConstraints = BoxConstraints.tightFor(
@@ -1327,7 +1337,12 @@ class _BoardScreenState extends State<BoardScreen> {
                   Positioned.fill(
                     left: middleInset,
                     right: middleInset,
-                    child: Center(child: _buildEvalGauge(theme)),
+                    child: Center(
+                      child: SizedBox(
+                        height: engineGaugeHeight,
+                        child: _buildEvalGauge(theme),
+                      ),
+                    ),
                   ),
                 Align(
                   alignment: Alignment.centerRight,

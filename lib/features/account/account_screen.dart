@@ -131,17 +131,15 @@ class _AccountScreenState extends State<AccountScreen> {
               TextField(
                 controller: _lichessUsernameController,
                 autocorrect: false,
-                decoration: const InputDecoration(
-                  hintText: 'Lichess username',
-                ),
+                decoration: const InputDecoration(hintText: 'Lichess username'),
               ),
             const SizedBox(height: 24),
             FilledButton(
               onPressed: _lichessLoading
                   ? null
                   : _lichessConnected
-                      ? _disconnectLichess
-                      : _authenticateLichess,
+                  ? _disconnectLichess
+                  : _authenticateLichess,
               child: _lichessLoading
                   ? const SizedBox(
                       width: 18,
