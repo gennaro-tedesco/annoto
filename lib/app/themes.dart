@@ -9,6 +9,7 @@ final boardPieceSetNotifier = ValueNotifier<String>('cburnett');
 final engineThreadsNotifier = ValueNotifier<int>(1);
 final engineHashNotifier = ValueNotifier<int>(16);
 final engineNameNotifier = ValueNotifier<String?>(null);
+final selectedEnginePackageNotifier = ValueNotifier<String?>(null);
 
 enum AppThemeOption {
   none,

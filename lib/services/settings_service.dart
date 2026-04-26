@@ -10,6 +10,7 @@ abstract final class SettingsService {
   static const _keyBoardPieceSet = 'boardPieceSet';
   static const _keyEngineThreads = 'engineThreads';
   static const _keyEngineHash = 'engineHash';
+  static const _keySelectedEnginePackage = 'selectedEnginePackage';
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -55,6 +56,11 @@ abstract final class SettingsService {
       engineHashNotifier.value = engineHash;
     }
 
+    final selectedEnginePackage = prefs.getString(_keySelectedEnginePackage);
+    if (selectedEnginePackage != null) {
+      selectedEnginePackageNotifier.value = selectedEnginePackage;
+    }
+
     themeNotifier.addListener(
       () => prefs.setString(_keyTheme, themeNotifier.value.name),
     );
@@ -77,5 +83,13 @@ abstract final class SettingsService {
     engineHashNotifier.addListener(
       () => prefs.setInt(_keyEngineHash, engineHashNotifier.value),
     );
+    selectedEnginePackageNotifier.addListener(() {
+      final pkg = selectedEnginePackageNotifier.value;
+      if (pkg != null) {
+        prefs.setString(_keySelectedEnginePackage, pkg);
+      } else {
+        prefs.remove(_keySelectedEnginePackage);
+      }
+    });
   }
 }

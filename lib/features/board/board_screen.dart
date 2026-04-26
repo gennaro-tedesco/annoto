@@ -100,6 +100,7 @@ class _BoardScreenState extends State<BoardScreen> {
   final _engine = ChessEngineService();
   Timer? _debounce;
   bool _engineReady = false;
+  bool _engineStarting = false;
   bool _engineEnabled = false;
   int _multiPv = 1;
   List<EngineEvaluation> _evaluations = [];
@@ -169,22 +170,22 @@ class _BoardScreenState extends State<BoardScreen> {
         (s) => s.name == boardPieceSetNotifier.value,
         orElse: () => PieceSet.cburnett,
       );
-      _engine
-          .init()
-          .then((_) {
-            if (mounted) {
-              setState(() {
-                _engineReady = true;
-              });
-            }
-          })
-          .catchError((_) {});
+      selectedEnginePackageNotifier.addListener(_onEnginePackageChanged);
       _initialised = true;
     }
   }
 
+  void _onEnginePackageChanged() {
+    setState(() {
+      _engineReady = false;
+      _engineEnabled = false;
+      _evaluations = [];
+    });
+  }
+
   @override
   void dispose() {
+    selectedEnginePackageNotifier.removeListener(_onEnginePackageChanged);
     _chapterSearchController.dispose();
     _debounce?.cancel();
     _analysisSub?.cancel();
@@ -428,8 +429,37 @@ class _BoardScreenState extends State<BoardScreen> {
             (move.to.rank == Rank.eighth && pos.turn == Side.white));
   }
 
-  void _toggleEngine() {
-    if (!_engineReady) return;
+  Future<void> _toggleEngine() async {
+    if (_engineStarting) return;
+    if (selectedEnginePackageNotifier.value == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Select an engine first')));
+      return;
+    }
+    if (!_engineReady) {
+      setState(() => _engineStarting = true);
+      try {
+        await _engine.init();
+        if (!mounted) return;
+        setState(() {
+          _engineReady = true;
+          _engineStarting = false;
+        });
+      } catch (error) {
+        if (mounted) {
+          setState(() {
+            _engineReady = false;
+            _engineStarting = false;
+            _engineEnabled = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Engine failed to start: $error')),
+          );
+        }
+        return;
+      }
+    }
     final enabling = !_engineEnabled;
     setState(() => _engineEnabled = enabling);
     if (enabling) {
@@ -461,8 +491,13 @@ class _BoardScreenState extends State<BoardScreen> {
           .listen((evals) {
             if (mounted) setState(() => _evaluations = evals);
           });
-    } catch (_) {
-      if (mounted) setState(() => _engineEnabled = false);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _engineEnabled = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Engine analysis failed: $error')),
+        );
+      }
     }
   }
 
@@ -1259,9 +1294,18 @@ class _BoardScreenState extends State<BoardScreen> {
               ? theme.colorScheme.primary
               : theme.colorScheme.onSurface,
         ),
-        icon: const Icon(LucideIcons.cpu),
-        tooltip: _engineEnabled ? 'Disable engine' : 'Enable engine',
-        onPressed: _toggleEngine,
+        icon: _engineStarting
+            ? SizedBox.square(
+                dimension: primaryIconSize,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(LucideIcons.cpu),
+        tooltip: _engineStarting
+            ? 'Starting engine'
+            : _engineEnabled
+            ? 'Disable engine'
+            : 'Enable engine',
+        onPressed: () => unawaited(_toggleEngine()),
         onLongPress: () => Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const EngineSettingsScreen())),
