@@ -36,9 +36,7 @@ class _AppTabShellState extends State<AppTabShell> {
     if (index == _engineTabIndex) {
       final service = EngineServiceScope.maybeOf(context)!;
       Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => EngineScreen(engineService: service),
-        ),
+        MaterialPageRoute(builder: (_) => EngineScreen(engineService: service)),
       );
       return;
     }

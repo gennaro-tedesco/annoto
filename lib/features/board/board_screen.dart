@@ -59,7 +59,7 @@ class BoardScreen extends StatefulWidget {
   const BoardScreen({super.key}) : engineMode = false, engineService = null;
 
   const BoardScreen.engine({super.key, required this.engineService})
-      : engineMode = true;
+    : engineMode = true;
 
   static const routeName = '/board';
 
@@ -74,7 +74,6 @@ class _BoardScreenState extends State<BoardScreen> {
   static const double _boardWidthFactor = 0.9;
   static const double _engineBoardWidthFactor = 0.92;
   static const Duration _engineAnimationDuration = Duration(milliseconds: 100);
-  static const Duration _boardAnimationDuration = Duration(milliseconds: 250);
   static const int _pvFoldDepth = 10;
   static const double _panelOutlineAlpha = 0.08;
   static const double _boardSelectorsGap = 6.0;
@@ -100,6 +99,8 @@ class _BoardScreenState extends State<BoardScreen> {
   late PieceSet _pieceSet;
   bool _initialised = false;
   final _currentRowKey = GlobalKey();
+  final _moveScrollController = ScrollController();
+  final _verticalMoveScrollController = ScrollController();
   late final ChessEngineService _engine;
   late final bool _ownsEngine;
   Timer? _debounce;
@@ -197,6 +198,8 @@ class _BoardScreenState extends State<BoardScreen> {
     _chapterSearchController.dispose();
     _debounce?.cancel();
     _analysisSub?.cancel();
+    _moveScrollController.dispose();
+    _verticalMoveScrollController.dispose();
     _engine.stopAnalysis();
     if (_ownsEngine) _engine.dispose();
     super.dispose();
@@ -383,6 +386,21 @@ class _BoardScreenState extends State<BoardScreen> {
         Scrollable.ensureVisible(
           _currentRowKey.currentContext!,
           alignment: 0.5,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      } else if (_moveScrollController.hasClients) {
+        _moveScrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      } else if (_verticalMoveScrollController.hasClients) {
+        final offset = newPath.isNotEmpty && newPath.last.children.isEmpty
+            ? _verticalMoveScrollController.position.maxScrollExtent
+            : 0.0;
+        _verticalMoveScrollController.animateTo(
+          offset,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
@@ -685,6 +703,8 @@ class _BoardScreenState extends State<BoardScreen> {
     final fillColor =
         theme.inputDecorationTheme.fillColor ??
         theme.colorScheme.surfaceContainerHighest;
+    final firstMove = _game.moves.children.firstOrNull;
+    final isAtFirstMove = _path.length == 1 && _path.first == firstMove;
     final isFirst = _path.isEmpty;
     final isLast = _currentNode.children.isEmpty;
 
@@ -761,7 +781,9 @@ class _BoardScreenState extends State<BoardScreen> {
               IconButton(
                 iconSize: 35,
                 icon: const Icon(Icons.first_page),
-                onPressed: isFirst ? null : () => _navigate([]),
+                onPressed: firstMove == null || isAtFirstMove
+                    ? null
+                    : () => _navigate([firstMove]),
               ),
               IconButton(
                 iconSize: 35,
@@ -805,29 +827,45 @@ class _BoardScreenState extends State<BoardScreen> {
   Widget _buildChessboard(double boardSize) {
     final shapes = _currentShapes;
 
-    return Chessboard(
-      size: boardSize,
-      fen: _currentPosition.fen,
-      orientation: _orientation,
-      lastMove: _currentLastMove,
-      settings: ChessboardSettings(
-        colorScheme: _colorScheme,
-        pieceAssets: _pieceSet.assets,
-        animationDuration: widget.engineMode
-            ? _engineAnimationDuration
-            : _boardAnimationDuration,
-        dragFeedbackScale: 1.0,
-        dragTargetKind: DragTargetKind.none,
-      ),
-      shapes: shapes.isEmpty ? null : shapes,
-      game: GameData(
-        playerSide: PlayerSide.both,
-        sideToMove: _currentPosition.turn,
-        validMoves: makeLegalMoves(_currentPosition),
-        isCheck: _currentPosition.isCheck,
-        promotionMove: _promotionMove,
-        onMove: _onMove,
-        onPromotionSelection: _onPromotionSelection,
+    return GestureDetector(
+      onVerticalDragEnd: (details) {
+        final swipeThreshold = 50.0;
+        if (details.primaryVelocity! < -swipeThreshold) {
+          setState(
+            () => _orientation = _orientation == Side.white
+                ? Side.black
+                : Side.white,
+          );
+        } else if (details.primaryVelocity! > swipeThreshold) {
+          setState(
+            () => _orientation = _orientation == Side.white
+                ? Side.black
+                : Side.white,
+          );
+        }
+      },
+      child: Chessboard(
+        size: boardSize,
+        fen: _currentPosition.fen,
+        orientation: _orientation,
+        lastMove: _currentLastMove,
+        settings: ChessboardSettings(
+          colorScheme: _colorScheme,
+          pieceAssets: _pieceSet.assets,
+          animationDuration: _engineAnimationDuration,
+          dragFeedbackScale: 1.0,
+          dragTargetKind: DragTargetKind.none,
+        ),
+        shapes: shapes.isEmpty ? null : shapes,
+        game: GameData(
+          playerSide: PlayerSide.both,
+          sideToMove: _currentPosition.turn,
+          validMoves: makeLegalMoves(_currentPosition),
+          isCheck: _currentPosition.isCheck,
+          promotionMove: _promotionMove,
+          onMove: _onMove,
+          onPromotionSelection: _onPromotionSelection,
+        ),
       ),
     );
   }
@@ -1386,10 +1424,148 @@ class _BoardScreenState extends State<BoardScreen> {
       return const SizedBox.shrink();
     }
 
-    // Collect every branch point in the tree, keyed by the row after which
-    // the variation block should be inserted.
-    //   root's children[1+]       → insertAfterRow 0, startPly 0
-    //   mainLine[j]'s children[1+] → insertAfterRow (j+1)~/2, startPly j+1
+    if (_engineEnabled) {
+      final pgnChip = Chip(
+        label: Text(
+          'PGN',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.primary,
+            fontSize: 10,
+            height: 1,
+          ),
+        ),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
+        padding: EdgeInsets.zero,
+      );
+      final tokens = <Widget>[];
+      int ply = 0;
+      PgnNode<PgnNodeData> node = _game.moves;
+
+      void addVariation(PgnChildNode varStart, int varPly, int depth) {
+        final indent = depth > 0 ? '  ' * depth : '';
+        tokens.add(
+          Padding(
+            padding: const EdgeInsets.only(left: 6, right: 2),
+            child: Text(
+              '$indent(',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          ),
+        );
+        final varLine = _collectLinePath(varStart);
+        for (int j = 0; j < varLine.length; j++) {
+          final vNode = varLine[j];
+          final vPly = varPly + j;
+          final vIsWhite = vPly % 2 == 0;
+          final vMoveNum = (vPly + 2) ~/ 2;
+          if (vIsWhite || j == 0) {
+            tokens.add(
+              Padding(
+                padding: const EdgeInsets.only(left: 4, right: 2),
+                child: Text(
+                  vIsWhite ? '$vMoveNum.' : '$vMoveNum…',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+              ),
+            );
+          }
+          final isVActive = _path.isNotEmpty && _path.last == vNode;
+          tokens.addAll(_commentTokens(theme, vNode.data.startingComments));
+          tokens.add(
+            _buildInlineMoveTile(
+              theme,
+              vNode.data.san,
+              isVActive,
+              () => _navigate(_pathTo(vNode)),
+              key: isVActive ? _currentRowKey : null,
+            ),
+          );
+          tokens.addAll(_commentTokens(theme, vNode.data.comments));
+          for (int k = 1; k < vNode.children.length; k++) {
+            addVariation(vNode.children[k], vPly + 1, depth + 1);
+          }
+        }
+        tokens.add(
+          Padding(
+            padding: const EdgeInsets.only(left: 2, right: 4),
+            child: Text(
+              ')',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          ),
+        );
+      }
+
+      while (node.children.isNotEmpty) {
+        final mainChild = node.children.first;
+        final isWhite = ply % 2 == 0;
+        final moveNumber = (ply + 2) ~/ 2;
+
+        if (isWhite) {
+          tokens.add(
+            Padding(
+              padding: const EdgeInsets.only(left: 8, right: 4),
+              child: Text(
+                '$moveNumber.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+            ),
+          );
+        }
+
+        final isMainActive = _path.isNotEmpty && _path.last == mainChild;
+        tokens.addAll(_commentTokens(theme, mainChild.data.startingComments));
+        tokens.add(
+          _buildInlineMoveTile(
+            theme,
+            mainChild.data.san,
+            isMainActive,
+            () => _navigate(_pathTo(mainChild)),
+            key: isMainActive ? _currentRowKey : null,
+          ),
+        );
+        tokens.addAll(_commentTokens(theme, mainChild.data.comments));
+
+        for (int k = 1; k < node.children.length; k++) {
+          addVariation(node.children[k], ply, 0);
+        }
+
+        node = mainChild;
+        ply++;
+      }
+
+      return ColoredBox(
+        color: movesPanelColor ?? theme.colorScheme.background,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 6, top: 3),
+              child: pgnChip,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                controller: _moveScrollController,
+                child: Row(children: tokens),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final branches = <int, List<(PgnNode<PgnNodeData>, int)>>{};
 
     void addBranch(PgnNode<PgnNodeData> node, int startPly, int row) {
@@ -1404,9 +1580,6 @@ class _BoardScreenState extends State<BoardScreen> {
     }
 
     final mainRowCount = (mainLine.length + 1) ~/ 2;
-
-    // endRow covers main rows plus any branch rows that fall past the last row
-    // (possible when mainLine.length is even and the last node has children).
     final endRow = branches.isEmpty
         ? mainRowCount
         : branches.keys.fold(
@@ -1430,8 +1603,39 @@ class _BoardScreenState extends State<BoardScreen> {
     return ColoredBox(
       color: movesPanelColor ?? theme.colorScheme.background,
       child: ListView(
+        controller: _verticalMoveScrollController,
         padding: const EdgeInsets.symmetric(vertical: 4),
         children: widgets,
+      ),
+    );
+  }
+
+  Widget _buildInlineMoveTile(
+    ThemeData theme,
+    String san,
+    bool active,
+    VoidCallback onTap, {
+    Key? key,
+  }) {
+    return GestureDetector(
+      key: key,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        margin: const EdgeInsets.only(right: 1),
+        decoration: active
+            ? BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(5),
+              )
+            : null,
+        child: Text(
+          _toFigurine(san),
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: active ? theme.colorScheme.onPrimary : null,
+            fontWeight: active ? FontWeight.w600 : null,
+          ),
+        ),
       ),
     );
   }
@@ -1473,7 +1677,6 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
-  // Render all non-main-line children of branchNode as variation blocks.
   Widget _buildAllVariations(
     ThemeData theme,
     PgnNode<PgnNodeData> branchNode,
@@ -1492,22 +1695,17 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
-  // Render one variation branch inline, recursing for any sub-branches.
-  // startPly = position ply (0 = initial) before startNode's move.
-  // depth = indentation level (0 = top variation, 1 = nested, …).
   Widget _buildVariationBlock(
     ThemeData theme,
     PgnChildNode<PgnNodeData> startNode,
     int startPly,
     int depth,
   ) {
-    // Follow first children to build the "main path" of this variation.
     final linePath = _collectLinePath(startNode);
     final items = <Widget>[
       _buildVariationInlineRow(theme, linePath, startPly, depth),
     ];
 
-    // Any node in the line that has additional children spawns nested blocks.
     for (int j = 0; j < linePath.length; j++) {
       final node = linePath[j];
       final movePly = startPly + j + 1;
@@ -1525,7 +1723,6 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
-  // Walk first children from startNode, collecting the linear path.
   List<PgnChildNode<PgnNodeData>> _collectLinePath(
     PgnChildNode<PgnNodeData> startNode,
   ) {
@@ -1539,11 +1736,10 @@ class _BoardScreenState extends State<BoardScreen> {
     return path;
   }
 
-  // Render a sequence of moves as an inline Wrap at the given indentation depth.
   Widget _buildVariationInlineRow(
     ThemeData theme,
     List<PgnChildNode<PgnNodeData>> nodes,
-    int startPly, // position ply before nodes[0]'s move
+    int startPly,
     int depth,
   ) {
     final tokens = <Widget>[];
@@ -1594,34 +1790,6 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
-  Widget _buildInlineMoveTile(
-    ThemeData theme,
-    String san,
-    bool active,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        margin: const EdgeInsets.only(right: 1),
-        decoration: active
-            ? BoxDecoration(
-                color: theme.colorScheme.primary,
-                borderRadius: BorderRadius.circular(5),
-              )
-            : null,
-        child: Text(
-          _toFigurine(san),
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: active ? theme.colorScheme.onPrimary : null,
-            fontWeight: active ? FontWeight.w600 : null,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildMoveRow({
     Key? key,
     required ThemeData theme,
@@ -1648,7 +1816,6 @@ class _BoardScreenState extends State<BoardScreen> {
     return LayoutBuilder(
       key: key,
       builder: (context, constraints) {
-        // overhead = number(36) + gap(8) + gap(4) + h-padding(8+8) = 64
         final tileWidth = ((constraints.maxWidth - 64) / 2).clamp(0.0, 96.0);
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
@@ -1739,6 +1906,33 @@ class _BoardScreenState extends State<BoardScreen> {
         .toList();
   }
 
+  Widget _moveTile(
+    ThemeData theme,
+    String san,
+    bool active,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: active
+            ? BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(6),
+              )
+            : null,
+        child: Text(
+          _toFigurine(san),
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: active ? theme.colorScheme.onPrimary : null,
+            fontWeight: active ? FontWeight.w600 : null,
+          ),
+        ),
+      ),
+    );
+  }
+
   ISet<Shape> get _currentShapes {
     if (_path.isEmpty) {
       return const ISetConst({});
@@ -1771,32 +1965,5 @@ class _BoardScreenState extends State<BoardScreen> {
     }
 
     return Arrow(color: color, orig: shape.from, dest: shape.to);
-  }
-
-  Widget _moveTile(
-    ThemeData theme,
-    String san,
-    bool active,
-    VoidCallback onTap,
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: active
-            ? BoxDecoration(
-                color: theme.colorScheme.primary,
-                borderRadius: BorderRadius.circular(6),
-              )
-            : null,
-        child: Text(
-          _toFigurine(san),
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: active ? theme.colorScheme.onPrimary : null,
-            fontWeight: active ? FontWeight.w600 : null,
-          ),
-        ),
-      ),
-    );
   }
 }

@@ -157,8 +157,7 @@ class ChessEngineService {
   Future<void> _waitFor(Completer<void> completer, Duration timeout) async {
     try {
       await completer.future.timeout(timeout);
-    } on TimeoutException {
-    }
+    } on TimeoutException {}
   }
 
   Future<void> _drainOutput() async {
@@ -201,7 +200,9 @@ class ChessEngineService {
     }
     _searching = false;
 
-    await _bridge.send('setoption name Threads value ${engineThreadsNotifier.value}');
+    await _bridge.send(
+      'setoption name Threads value ${engineThreadsNotifier.value}',
+    );
     await _bridge.send('setoption name Hash value ${engineHashNotifier.value}');
     await _bridge.send('setoption name MultiPV value $multiPv');
 
