@@ -136,13 +136,7 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
               icon: const Icon(Icons.chevron_left, size: 22),
             ),
             title: const Text('Chess engine'),
-            actions: [
-              IconButton(
-                onPressed: _loading ? null : _loadEngines,
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh engines',
-              ),
-            ],
+            actions: [],
           ),
           body: ListView(
             padding: const EdgeInsets.all(16),
