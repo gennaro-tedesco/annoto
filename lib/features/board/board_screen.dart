@@ -6,6 +6,7 @@ import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/features/settings/engine_settings_screen.dart';
 import 'package:annoto/services/chess_engine_service.dart';
+import 'package:annoto/services/engine_service_scope.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
@@ -55,13 +56,15 @@ ChessboardColorScheme _schemeByLabel(String label) =>
     ChessboardColorScheme.brown;
 
 class BoardScreen extends StatefulWidget {
-  const BoardScreen({super.key}) : engineMode = false;
+  const BoardScreen({super.key}) : engineMode = false, engineService = null;
 
-  const BoardScreen.engine({super.key}) : engineMode = true;
+  const BoardScreen.engine({super.key, required this.engineService})
+      : engineMode = true;
 
   static const routeName = '/board';
 
   final bool engineMode;
+  final ChessEngineService? engineService;
 
   @override
   State<BoardScreen> createState() => _BoardScreenState();
@@ -97,9 +100,11 @@ class _BoardScreenState extends State<BoardScreen> {
   late PieceSet _pieceSet;
   bool _initialised = false;
   final _currentRowKey = GlobalKey();
-  final _engine = ChessEngineService();
+  late final ChessEngineService _engine;
+  late final bool _ownsEngine;
   Timer? _debounce;
   bool _engineReady = false;
+  bool _engineStarting = false;
   bool _engineEnabled = false;
   int _multiPv = 1;
   List<EngineEvaluation> _evaluations = [];
@@ -153,6 +158,10 @@ class _BoardScreenState extends State<BoardScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialised) {
+      final scopedService = EngineServiceScope.maybeOf(context);
+      _engine = widget.engineService ?? scopedService ?? ChessEngineService();
+      _ownsEngine = widget.engineService == null && scopedService == null;
+      _engineReady = _engine.isStarted;
       if (widget.engineMode) {
         _game = PgnGame.parsePgn('', initHeaders: PgnGame.emptyHeaders);
         _buildMaps(_game.moves, Chess.initial);
@@ -169,26 +178,27 @@ class _BoardScreenState extends State<BoardScreen> {
         (s) => s.name == boardPieceSetNotifier.value,
         orElse: () => PieceSet.cburnett,
       );
-      _engine
-          .init()
-          .then((_) {
-            if (mounted) {
-              setState(() {
-                _engineReady = true;
-              });
-            }
-          })
-          .catchError((_) {});
+      selectedEnginePackageNotifier.addListener(_onEnginePackageChanged);
       _initialised = true;
     }
   }
 
+  void _onEnginePackageChanged() {
+    setState(() {
+      _engineReady = false;
+      _engineEnabled = false;
+      _evaluations = [];
+    });
+  }
+
   @override
   void dispose() {
+    selectedEnginePackageNotifier.removeListener(_onEnginePackageChanged);
     _chapterSearchController.dispose();
     _debounce?.cancel();
     _analysisSub?.cancel();
-    _engine.dispose();
+    _engine.stopAnalysis();
+    if (_ownsEngine) _engine.dispose();
     super.dispose();
   }
 
@@ -428,8 +438,37 @@ class _BoardScreenState extends State<BoardScreen> {
             (move.to.rank == Rank.eighth && pos.turn == Side.white));
   }
 
-  void _toggleEngine() {
-    if (!_engineReady) return;
+  Future<void> _toggleEngine() async {
+    if (_engineStarting) return;
+    if (selectedEnginePackageNotifier.value == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Select an engine first')));
+      return;
+    }
+    if (!_engineReady) {
+      setState(() => _engineStarting = true);
+      try {
+        await _engine.init();
+        if (!mounted) return;
+        setState(() {
+          _engineReady = true;
+          _engineStarting = false;
+        });
+      } catch (error) {
+        if (mounted) {
+          setState(() {
+            _engineReady = false;
+            _engineStarting = false;
+            _engineEnabled = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Engine failed to start: $error')),
+          );
+        }
+        return;
+      }
+    }
     final enabling = !_engineEnabled;
     setState(() => _engineEnabled = enabling);
     if (enabling) {
@@ -461,8 +500,13 @@ class _BoardScreenState extends State<BoardScreen> {
           .listen((evals) {
             if (mounted) setState(() => _evaluations = evals);
           });
-    } catch (_) {
-      if (mounted) setState(() => _engineEnabled = false);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _engineEnabled = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Engine analysis failed: $error')),
+        );
+      }
     }
   }
 
@@ -555,47 +599,48 @@ class _BoardScreenState extends State<BoardScreen> {
                 : null,
           ),
           Expanded(
-            child: Wrap(
-              spacing: 0,
-              runSpacing: 2,
-              children: [
-                ..._buildPvTokens(theme, visibleTokens),
-                if (canFold && !isExpanded)
-                  GestureDetector(
-                    onTap: () => setState(() => _expandedPvs.add(pvIndex)),
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '…',
-                            style: textStyle?.copyWith(
-                              color: theme.colorScheme.outline,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ..._buildPvTokens(theme, visibleTokens),
+                  if (canFold && !isExpanded)
+                    GestureDetector(
+                      onTap: () => setState(() => _expandedPvs.add(pvIndex)),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '…',
+                              style: textStyle?.copyWith(
+                                color: theme.colorScheme.outline,
+                              ),
                             ),
-                          ),
-                          Icon(
-                            Icons.chevron_right,
-                            size: 14,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ],
+                            Icon(
+                              Icons.chevron_right,
+                              size: 14,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                if (canFold && isExpanded)
-                  GestureDetector(
-                    onTap: () => setState(() => _expandedPvs.remove(pvIndex)),
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 2),
-                      child: Icon(
-                        Icons.chevron_left,
-                        size: 14,
-                        color: theme.colorScheme.outline,
+                  if (canFold && isExpanded)
+                    GestureDetector(
+                      onTap: () => setState(() => _expandedPvs.remove(pvIndex)),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 2),
+                        child: Icon(
+                          Icons.chevron_left,
+                          size: 14,
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -679,37 +724,17 @@ class _BoardScreenState extends State<BoardScreen> {
                 _buildSelectors(theme, selectorWidth),
                 if (_engineEnabled)
                   Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final half = constraints.maxWidth / 2;
-                        return Stack(
-                          children: [
-                            Positioned(
-                              left: 0,
-                              top: 0,
-                              bottom: 0,
-                              width: half - 0.5,
-                              child: _buildMoveList(theme),
-                            ),
-                            Positioned(
-                              left: half - 0.5,
-                              top: 0,
-                              bottom: 0,
-                              width: 1,
-                              child: ColoredBox(
-                                color: theme.colorScheme.outlineVariant,
-                              ),
-                            ),
-                            Positioned(
-                              left: half + 0.5,
-                              top: 0,
-                              bottom: 0,
-                              width: half - 0.5,
-                              child: _buildEvalPanel(theme),
-                            ),
-                          ],
-                        );
-                      },
+                    child: Column(
+                      children: [
+                        Expanded(child: _buildMoveList(theme)),
+                        SizedBox(
+                          height: 1,
+                          child: ColoredBox(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        Expanded(child: _buildEvalPanel(theme)),
+                      ],
                     ),
                   )
                 else
@@ -887,37 +912,17 @@ class _BoardScreenState extends State<BoardScreen> {
               const SizedBox(height: 8),
               if (_engineEnabled)
                 Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final half = constraints.maxWidth / 2;
-                      return Stack(
-                        children: [
-                          Positioned(
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            width: half - 0.5,
-                            child: _buildMoveList(theme),
-                          ),
-                          Positioned(
-                            left: half - 0.5,
-                            top: 0,
-                            bottom: 0,
-                            width: 1,
-                            child: ColoredBox(
-                              color: theme.colorScheme.outlineVariant,
-                            ),
-                          ),
-                          Positioned(
-                            left: half + 0.5,
-                            top: 0,
-                            bottom: 0,
-                            width: half - 0.5,
-                            child: _buildEvalPanel(theme),
-                          ),
-                        ],
-                      );
-                    },
+                  child: Column(
+                    children: [
+                      Expanded(child: _buildMoveList(theme)),
+                      SizedBox(
+                        height: 1,
+                        child: ColoredBox(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                      Expanded(child: _buildEvalPanel(theme)),
+                    ],
                   ),
                 )
               else
@@ -1259,9 +1264,18 @@ class _BoardScreenState extends State<BoardScreen> {
               ? theme.colorScheme.primary
               : theme.colorScheme.onSurface,
         ),
-        icon: const Icon(LucideIcons.cpu),
-        tooltip: _engineEnabled ? 'Disable engine' : 'Enable engine',
-        onPressed: _toggleEngine,
+        icon: _engineStarting
+            ? SizedBox.square(
+                dimension: primaryIconSize,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(LucideIcons.cpu),
+        tooltip: _engineStarting
+            ? 'Starting engine'
+            : _engineEnabled
+            ? 'Disable engine'
+            : 'Enable engine',
+        onPressed: () => unawaited(_toggleEngine()),
         onLongPress: () => Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const EngineSettingsScreen())),
