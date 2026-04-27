@@ -2,6 +2,7 @@ import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/features/engine/engine_screen.dart';
 import 'package:annoto/features/home/home_screen.dart';
 import 'package:annoto/features/lichess/lichess_screen.dart';
+import 'package:annoto/services/engine_service_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 
@@ -33,9 +34,12 @@ class _AppTabShellState extends State<AppTabShell> {
 
   void _onDestinationSelected(int index) {
     if (index == _engineTabIndex) {
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const EngineScreen()));
+      final service = EngineServiceScope.maybeOf(context)!;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EngineScreen(engineService: service),
+        ),
+      );
       return;
     }
 

@@ -63,6 +63,8 @@ class ChessEngineService {
   Timer? _pollTimer;
 
   bool _started = false;
+
+  bool get isStarted => _started;
   bool _searching = false;
   bool _acceptingAnalysis = false;
   int _analysisGeneration = 0;

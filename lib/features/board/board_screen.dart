@@ -6,6 +6,7 @@ import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/features/settings/engine_settings_screen.dart';
 import 'package:annoto/services/chess_engine_service.dart';
+import 'package:annoto/services/engine_service_scope.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
@@ -55,13 +56,15 @@ ChessboardColorScheme _schemeByLabel(String label) =>
     ChessboardColorScheme.brown;
 
 class BoardScreen extends StatefulWidget {
-  const BoardScreen({super.key}) : engineMode = false;
+  const BoardScreen({super.key}) : engineMode = false, engineService = null;
 
-  const BoardScreen.engine({super.key}) : engineMode = true;
+  const BoardScreen.engine({super.key, required this.engineService})
+      : engineMode = true;
 
   static const routeName = '/board';
 
   final bool engineMode;
+  final ChessEngineService? engineService;
 
   @override
   State<BoardScreen> createState() => _BoardScreenState();
@@ -97,7 +100,8 @@ class _BoardScreenState extends State<BoardScreen> {
   late PieceSet _pieceSet;
   bool _initialised = false;
   final _currentRowKey = GlobalKey();
-  final _engine = ChessEngineService();
+  late final ChessEngineService _engine;
+  late final bool _ownsEngine;
   Timer? _debounce;
   bool _engineReady = false;
   bool _engineStarting = false;
@@ -154,6 +158,10 @@ class _BoardScreenState extends State<BoardScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialised) {
+      final scopedService = EngineServiceScope.maybeOf(context);
+      _engine = widget.engineService ?? scopedService ?? ChessEngineService();
+      _ownsEngine = widget.engineService == null && scopedService == null;
+      _engineReady = _engine.isStarted;
       if (widget.engineMode) {
         _game = PgnGame.parsePgn('', initHeaders: PgnGame.emptyHeaders);
         _buildMaps(_game.moves, Chess.initial);
@@ -189,7 +197,8 @@ class _BoardScreenState extends State<BoardScreen> {
     _chapterSearchController.dispose();
     _debounce?.cancel();
     _analysisSub?.cancel();
-    _engine.dispose();
+    _engine.stopAnalysis();
+    if (_ownsEngine) _engine.dispose();
     super.dispose();
   }
 
