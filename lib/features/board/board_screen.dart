@@ -599,47 +599,48 @@ class _BoardScreenState extends State<BoardScreen> {
                 : null,
           ),
           Expanded(
-            child: Wrap(
-              spacing: 0,
-              runSpacing: 2,
-              children: [
-                ..._buildPvTokens(theme, visibleTokens),
-                if (canFold && !isExpanded)
-                  GestureDetector(
-                    onTap: () => setState(() => _expandedPvs.add(pvIndex)),
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 2),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '…',
-                            style: textStyle?.copyWith(
-                              color: theme.colorScheme.outline,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ..._buildPvTokens(theme, visibleTokens),
+                  if (canFold && !isExpanded)
+                    GestureDetector(
+                      onTap: () => setState(() => _expandedPvs.add(pvIndex)),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '…',
+                              style: textStyle?.copyWith(
+                                color: theme.colorScheme.outline,
+                              ),
                             ),
-                          ),
-                          Icon(
-                            Icons.chevron_right,
-                            size: 14,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ],
+                            Icon(
+                              Icons.chevron_right,
+                              size: 14,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                if (canFold && isExpanded)
-                  GestureDetector(
-                    onTap: () => setState(() => _expandedPvs.remove(pvIndex)),
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 2),
-                      child: Icon(
-                        Icons.chevron_left,
-                        size: 14,
-                        color: theme.colorScheme.outline,
+                  if (canFold && isExpanded)
+                    GestureDetector(
+                      onTap: () => setState(() => _expandedPvs.remove(pvIndex)),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 2),
+                        child: Icon(
+                          Icons.chevron_left,
+                          size: 14,
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -723,37 +724,17 @@ class _BoardScreenState extends State<BoardScreen> {
                 _buildSelectors(theme, selectorWidth),
                 if (_engineEnabled)
                   Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final half = constraints.maxWidth / 2;
-                        return Stack(
-                          children: [
-                            Positioned(
-                              left: 0,
-                              top: 0,
-                              bottom: 0,
-                              width: half - 0.5,
-                              child: _buildMoveList(theme),
-                            ),
-                            Positioned(
-                              left: half - 0.5,
-                              top: 0,
-                              bottom: 0,
-                              width: 1,
-                              child: ColoredBox(
-                                color: theme.colorScheme.outlineVariant,
-                              ),
-                            ),
-                            Positioned(
-                              left: half + 0.5,
-                              top: 0,
-                              bottom: 0,
-                              width: half - 0.5,
-                              child: _buildEvalPanel(theme),
-                            ),
-                          ],
-                        );
-                      },
+                    child: Column(
+                      children: [
+                        Expanded(child: _buildMoveList(theme)),
+                        SizedBox(
+                          height: 1,
+                          child: ColoredBox(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        Expanded(child: _buildEvalPanel(theme)),
+                      ],
                     ),
                   )
                 else
@@ -931,37 +912,17 @@ class _BoardScreenState extends State<BoardScreen> {
               const SizedBox(height: 8),
               if (_engineEnabled)
                 Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final half = constraints.maxWidth / 2;
-                      return Stack(
-                        children: [
-                          Positioned(
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            width: half - 0.5,
-                            child: _buildMoveList(theme),
-                          ),
-                          Positioned(
-                            left: half - 0.5,
-                            top: 0,
-                            bottom: 0,
-                            width: 1,
-                            child: ColoredBox(
-                              color: theme.colorScheme.outlineVariant,
-                            ),
-                          ),
-                          Positioned(
-                            left: half + 0.5,
-                            top: 0,
-                            bottom: 0,
-                            width: half - 0.5,
-                            child: _buildEvalPanel(theme),
-                          ),
-                        ],
-                      );
-                    },
+                  child: Column(
+                    children: [
+                      Expanded(child: _buildMoveList(theme)),
+                      SizedBox(
+                        height: 1,
+                        child: ColoredBox(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                      Expanded(child: _buildEvalPanel(theme)),
+                    ],
                   ),
                 )
               else
