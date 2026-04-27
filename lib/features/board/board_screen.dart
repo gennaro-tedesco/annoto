@@ -17,28 +17,8 @@ const boardColorSchemes = <(String, ChessboardColorScheme)>[
   ('Brown', ChessboardColorScheme.brown),
   ('Blue', ChessboardColorScheme.blue),
   ('Green', ChessboardColorScheme.green),
-  ('IC', ChessboardColorScheme.ic),
-  ('Blue 2', ChessboardColorScheme.blue2),
-  ('Blue 3', ChessboardColorScheme.blue3),
-  ('Blue Marble', ChessboardColorScheme.blueMarble),
-  ('Canvas', ChessboardColorScheme.canvas),
-  ('Green Plastic', ChessboardColorScheme.greenPlastic),
   ('Grey', ChessboardColorScheme.grey),
-  ('Horsey', ChessboardColorScheme.horsey),
-  ('Leather', ChessboardColorScheme.leather),
-  ('Maple', ChessboardColorScheme.maple),
-  ('Maple 2', ChessboardColorScheme.maple2),
-  ('Marble', ChessboardColorScheme.marble),
-  ('Metal', ChessboardColorScheme.metal),
-  ('Newspaper', ChessboardColorScheme.newspaper),
   ('Olive', ChessboardColorScheme.olive),
-  ('Pink Pyramid', ChessboardColorScheme.pinkPyramid),
-  ('Purple', ChessboardColorScheme.purple),
-  ('Purple Diag', ChessboardColorScheme.purpleDiag),
-  ('Wood', ChessboardColorScheme.wood),
-  ('Wood 2', ChessboardColorScheme.wood2),
-  ('Wood 3', ChessboardColorScheme.wood3),
-  ('Wood 4', ChessboardColorScheme.wood4),
 ];
 
 const _annotationColors = <CommentShapeColor, Color>{
@@ -548,7 +528,9 @@ class _BoardScreenState extends State<BoardScreen> {
     List<(int, bool, String)> tokens,
   ) {
     final textStyle = widget.engineMode
-        ? theme.textTheme.bodyLarge
+        ? theme.textTheme.bodyLarge?.copyWith(
+            fontSize: (theme.textTheme.bodyLarge?.fontSize ?? 16) + 2,
+          )
         : theme.textTheme.bodyMedium;
     final widgets = <Widget>[];
     for (int i = 0; i < tokens.length; i++) {
@@ -596,7 +578,9 @@ class _BoardScreenState extends State<BoardScreen> {
         ? pvTokens.sublist(0, _pvFoldDepth)
         : pvTokens;
     final textStyle = widget.engineMode
-        ? theme.textTheme.bodyLarge
+        ? theme.textTheme.bodyLarge?.copyWith(
+            fontSize: (theme.textTheme.bodyLarge?.fontSize ?? 16) + 2,
+          )
         : theme.textTheme.bodyMedium;
 
     return Padding(
@@ -1270,7 +1254,7 @@ class _BoardScreenState extends State<BoardScreen> {
           setState(() => _pieceSet = set);
         },
         itemBuilder: (_) => [
-          for (final set in PieceSet.values)
+          for (final set in [PieceSet.alpha, PieceSet.cburnett, PieceSet.merida])
             PopupMenuItem(value: set, child: Text(set.label)),
         ],
       ),
@@ -1631,7 +1615,12 @@ class _BoardScreenState extends State<BoardScreen> {
             : null,
         child: Text(
           _toFigurine(san),
-          style: theme.textTheme.bodyLarge?.copyWith(
+          style: (widget.engineMode
+                  ? theme.textTheme.bodyLarge?.copyWith(
+                      fontSize: (theme.textTheme.bodyLarge?.fontSize ?? 16) + 2,
+                    )
+                  : theme.textTheme.bodyLarge)
+              ?.copyWith(
             color: active ? theme.colorScheme.onPrimary : null,
             fontWeight: active ? FontWeight.w600 : null,
           ),
@@ -1873,7 +1862,7 @@ class _BoardScreenState extends State<BoardScreen> {
                           (comment) => Padding(
                             padding: const EdgeInsets.only(bottom: 2),
                             child: Text(
-                              '{ $comment }',
+                              comment,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant,
                               ),
@@ -1896,7 +1885,7 @@ class _BoardScreenState extends State<BoardScreen> {
           (comment) => Padding(
             padding: const EdgeInsets.only(right: 4),
             child: Text(
-              '{ $comment }',
+              comment,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

@@ -49,6 +49,10 @@ dependencies:
   supabase_flutter: ^2.0.0
   uuid: ^4.0.0
 
+dependency_overrides:
+  chessground:
+    path: packages/chessground
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
