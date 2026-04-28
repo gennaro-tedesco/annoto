@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>annoto — the ultimate chess app</title>
+  <meta name="description"
+    content="annoto extracts hand-written chess scoresheets to PGN files and analyses them with a local engine and Lichess integration." />
+  <link rel="icon" href="images/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;700;800&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- ── NAV ─────────────────────────────────────── -->
+  <nav>
+    <span class="nav-brand">annoto</span>
+    <div class="nav-actions">
+      <a class="github-link" href="https://github.com/gennaro-tedesco/annoto" target="_blank"
+        rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+        </svg>
+        GitHub
+      </a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">🌙</button>
+    </div>
+  </nav>
+
+  <!-- ── HERO ─────────────────────────────────────── -->
+  <header class="hero">
+    <img src="images/logo.png" alt="annoto logo" class="hero-logo" />
+    <span class="badge">✦ spec-driven development</span>
+    <h1>the ultimate chess app</h1>
+    <p class="hero-sub">
+      Extract hand-written chess scoresheets into <code>.pgn</code> files,
+      analyse them with a local engine and sync seamlessly with your Lichess studies.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" href="https://github.com/gennaro-tedesco/annoto" target="_blank"
+        rel="noopener">
+        View on GitHub
+      </a>
+    </div>
+  </header>
+
+  <!-- ── DEMO ─────────────────────────────────────── -->
+  <section id="demo">
+    <div class="demo-wrapper reveal">
+      <video class="demo-video" autoplay loop muted playsinline controls>
+        <source
+          src="https://github.com/gennaro-tedesco/annoto/releases/download/v0.9.1/Untitled.mov"
+          type="video/mp4" />
+        <source
+          src="https://github.com/gennaro-tedesco/annoto/releases/download/v0.9.1/Untitled.mov"
+          type="video/quicktime" />
+      </video>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- ── FEATURES ─────────────────────────────────── -->
+  <section id="features">
+    <p class="section-label reveal">Features</p>
+    <br /><br />
+    <div class="features-grid">
+
+      <div class="feature-card reveal">
+        <span class="feature-icon">✍️</span>
+        <h3>Scoresheet import</h3>
+        <p>Import scoresheets from screenshots or as files and extract hand-written moves into
+          a valid <code>.pgn</code> file instantly.</p>
+        <ul class="feature-list">
+          <li>Hand-written OCR via cloud AI</li>
+          <li>Import existing <code>.pgn</code> files</li>
+          <li>Scoresheet validation to ensure correct transcription</li>
+          <li>Share across chess apps</li>
+        </ul>
+      </div>
+
+      <div class="feature-card reveal">
+        <span class="feature-icon">⚙️</span>
+        <h3>Engine analysis</h3>
+        <p>Connect any locally installed engine that exposes the OEX protocol and analyse your games
+          with the parameters you choose.</p>
+        <ul class="feature-list">
+          <li>Auto-detects OEX-compatible engines</li>
+          <li>Configurable depth & multi-PV</li>
+          <li>Board powered by Flutter lichess libs</li>
+        </ul>
+      </div>
+
+      <div class="feature-card reveal">
+        <span class="feature-icon">♟️</span>
+        <h3>Lichess integration</h3>
+        <p>Sign in with your Lichess account to browse and analyse all your studies inside annoto's
+          clean, distraction-free interface.</p>
+        <ul class="feature-list">
+          <li>Full study synchronisation</li>
+          <li>Beautiful & minimal board UI</li>
+          <li>Browsable study chapters</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── TECH STACK ────────────────────────────────── -->
+  <section id="tech">
+    <p class="section-label reveal">Tech stack</p>
+    <p class="section-desc reveal">
+      annoto is an experiment in spec-driven development to determine whether current
+      state-of-the-art of assisted development can produce applications with real usage relevance.
+      The development of this codebase has been almost entirely generated by coding agents, however,
+      with continuous review and steering by the human.
+      <br /><br />
+      This project makes use of <a href="https://supabase.com/" />Supabase</a>
+      as backend-as-a-service to leverage authentication workflows for cloud models: in order to
+      access the hand-written to <code>.pgn</code> functionality users must be authenticated within
+      the project. Un-authenticated users may still use the app with all its other functionalities
+      (lichess integration, engine analysis).
+    </p>
+
+
+    <!-- ── FOOTER ────────────────────────────────────── -->
+    <footer>
+      <p>
+        Built by <a href="https://github.com/gennaro-tedesco" target="_blank" rel="noopener">Gennaro
+          Tedesco</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/gennaro-tedesco/annoto" target="_blank" rel="noopener">Source on
+          GitHub</a>
+      </p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
