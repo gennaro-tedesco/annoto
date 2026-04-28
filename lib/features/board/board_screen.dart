@@ -75,6 +75,7 @@ class _BoardScreenState extends State<BoardScreen> {
   List<PgnChildNode<PgnNodeData>> _path = [];
   NormalMove? _promotionMove;
   Side _orientation = Side.white;
+  double _verticalDragAccum = 0.0;
   late ChessboardColorScheme _colorScheme;
   late PieceSet _pieceSet;
   bool _initialised = false;
@@ -812,21 +813,16 @@ class _BoardScreenState extends State<BoardScreen> {
     final shapes = _currentShapes;
 
     return GestureDetector(
+      onVerticalDragStart: (_) => _verticalDragAccum = 0.0,
+      onVerticalDragUpdate: (details) =>
+          _verticalDragAccum += details.delta.dy.abs(),
       onVerticalDragEnd: (details) {
-        final swipeThreshold = 50.0;
-        if (details.primaryVelocity! < -swipeThreshold) {
-          setState(
-            () => _orientation = _orientation == Side.white
-                ? Side.black
-                : Side.white,
-          );
-        } else if (details.primaryVelocity! > swipeThreshold) {
-          setState(
-            () => _orientation = _orientation == Side.white
-                ? Side.black
-                : Side.white,
-          );
-        }
+        if (_verticalDragAccum < boardSize * 0.7) return;
+        if ((details.primaryVelocity ?? 0).abs() < 50.0) return;
+        setState(
+          () => _orientation =
+              _orientation == Side.white ? Side.black : Side.white,
+        );
       },
       child: Chessboard(
         size: boardSize,
