@@ -590,13 +590,15 @@ class _BoardScreenState extends State<BoardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 52,
             child: evalText != null
-                ? Text(
-                    evalText,
-                    style: textStyle?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.primary,
+                ? Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      evalText,
+                      style: textStyle?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary,
+                      ),
                     ),
                   )
                 : null,
