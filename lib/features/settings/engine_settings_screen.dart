@@ -119,6 +119,7 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
         engineThreadsNotifier,
         engineHashNotifier,
         selectedEnginePackageNotifier,
+        analysisDepthNotifier,
       ]),
       builder: (context, child) {
         final theme = Theme.of(context);
@@ -199,6 +200,36 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
                             );
                           },
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Analysis depth',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${analysisDepthNotifier.value}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      Slider(
+                        min: 8,
+                        max: 30,
+                        divisions: 22,
+                        value: analysisDepthNotifier.value.toDouble(),
+                        label: '${analysisDepthNotifier.value}',
+                        onChanged: (value) {
+                          analysisDepthNotifier.value = value.round();
+                        },
                       ),
                     ],
                   ),

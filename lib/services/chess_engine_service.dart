@@ -4,6 +4,8 @@ import 'package:annoto/app/themes.dart';
 import 'package:annoto/services/chess_engine.dart';
 import 'package:flutter/foundation.dart';
 
+enum EngineJobKind { idle, liveAnalysis, gameAnalysis }
+
 @visibleForTesting
 EngineEvaluation? parseInfoLine(String line, Map<int, EngineEvaluation> pvMap) {
   if (!line.startsWith('info ') || !line.contains('score')) return null;
@@ -69,6 +71,8 @@ class ChessEngineService {
   bool _acceptingAnalysis = false;
   int _analysisGeneration = 0;
   final _pvMap = <int, EngineEvaluation>{};
+  final jobKind = ValueNotifier<EngineJobKind>(EngineJobKind.idle);
+  EngineEvaluation? _lastSinglePv;
 
   Completer<void>? _initCompleter;
   Completer<void>? _uciOkCompleter;
@@ -143,15 +147,20 @@ class ChessEngineService {
       return;
     }
 
+    if (parseInfoLine(line, _pvMap) == null) return;
+
+    if (jobKind.value == EngineJobKind.gameAnalysis) {
+      _lastSinglePv = _pvMap[1];
+      return;
+    }
+
     final controller = _controller;
     if (controller == null || controller.isClosed) return;
     if (!_acceptingAnalysis) return;
 
-    if (parseInfoLine(line, _pvMap) != null) {
-      final entries = _pvMap.entries.toList()
-        ..sort((a, b) => a.key.compareTo(b.key));
-      controller.add(entries.map((e) => e.value).toList());
-    }
+    final entries = _pvMap.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    controller.add(entries.map((e) => e.value).toList());
   }
 
   Future<void> _waitFor(Completer<void> completer, Duration timeout) async {
@@ -170,6 +179,9 @@ class ChessEngineService {
 
   Stream<List<EngineEvaluation>> startAnalysis(String fen, {int multiPv = 1}) {
     if (!_started) throw StateError('Engine not initialized');
+    if (jobKind.value == EngineJobKind.gameAnalysis) {
+      throw StateError('Game analysis is active');
+    }
 
     final old = _controller;
     if (old != null && !old.isClosed) old.close();
@@ -180,6 +192,7 @@ class ChessEngineService {
     final generation = ++_analysisGeneration;
     _acceptingAnalysis = false;
     _pvMap.clear();
+    jobKind.value = EngineJobKind.liveAnalysis;
     unawaited(_sendAnalysisCommands(fen, multiPv, generation));
 
     return controller.stream;
@@ -225,6 +238,61 @@ class ChessEngineService {
     final c = _controller;
     if (c != null && !c.isClosed) c.close();
     _controller = null;
+    if (jobKind.value == EngineJobKind.liveAnalysis) {
+      jobKind.value = EngineJobKind.idle;
+    }
+  }
+
+  Future<EngineEvaluation> analyzePly(String fen, int depth) async {
+    if (!_started) throw StateError('Engine not initialized');
+    if (jobKind.value == EngineJobKind.liveAnalysis) {
+      throw StateError('Live engine analysis is active');
+    }
+    jobKind.value = EngineJobKind.gameAnalysis;
+    _lastSinglePv = null;
+    _pvMap.clear();
+
+    if (_searching) {
+      _bestMoveCompleter = Completer<void>();
+      await _bridge.send('stop');
+      await _waitFor(_bestMoveCompleter!, const Duration(seconds: 2));
+    } else {
+      await _bridge.send('stop');
+    }
+    _searching = false;
+
+    await _bridge.send(
+      'setoption name Threads value ${engineThreadsNotifier.value}',
+    );
+    await _bridge.send('setoption name Hash value ${engineHashNotifier.value}');
+    await _bridge.send('setoption name MultiPV value 1');
+
+    _readyOkCompleter = Completer<void>();
+    await _bridge.send('isready');
+    await _waitFor(_readyOkCompleter!, const Duration(seconds: 2));
+
+    await _bridge.send('position fen $fen');
+    _bestMoveCompleter = Completer<void>();
+    await _bridge.send('go depth $depth');
+    _searching = true;
+
+    await _waitFor(_bestMoveCompleter!, Duration(seconds: depth * 5));
+    _searching = false;
+
+    final result = _lastSinglePv;
+    if (result == null) throw StateError('No evaluation received from engine');
+    return result;
+  }
+
+  Future<void> cancelGameAnalysis() async {
+    if (jobKind.value != EngineJobKind.gameAnalysis) return;
+    if (_searching) {
+      _bestMoveCompleter = Completer<void>();
+      await _bridge.send('stop');
+      await _waitFor(_bestMoveCompleter!, const Duration(seconds: 2));
+    }
+    _searching = false;
+    jobKind.value = EngineJobKind.idle;
   }
 
   Future<void> dispose() async {

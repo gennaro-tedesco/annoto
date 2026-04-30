@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:annoto/models/scoresheet.dart';
+import 'package:annoto/repositories/game_analysis_repository.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -87,6 +88,8 @@ class ScoresheetRepository {
     final dir = await _dir();
     final pgnFile = File('${dir.path}/$id.pgn');
     if (await pgnFile.exists()) await pgnFile.delete();
+
+    await gameAnalysisRepository.deleteAll(id);
 
     final index = await _readIndex();
     index.removeWhere((e) => e['id'] == id);
