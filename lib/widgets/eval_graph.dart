@@ -24,11 +24,24 @@ class EvalGraph extends StatelessWidget {
         final box = context.findRenderObject() as RenderBox?;
         if (box == null) return;
         final localX = details.localPosition.dx;
-        final ply = ((localX / box.size.width) * totalPlies).floor().clamp(
-          0,
-          totalPlies - 1,
-        );
-        onTapPly(ply);
+        final maxPly = totalPlies < evaluations.length
+            ? totalPlies
+            : evaluations.length;
+        if (maxPly == 0) return;
+        final step = box.size.width / totalPlies;
+        int? nearestPly;
+        double? nearestDistance;
+        for (int i = 0; i < maxPly; i++) {
+          if (evaluations[i] == null) continue;
+          final x = i * step + step / 2;
+          final distance = (localX - x).abs();
+          if (nearestDistance == null || distance < nearestDistance) {
+            nearestPly = i;
+            nearestDistance = distance;
+          }
+        }
+        if (nearestPly == null) return;
+        onTapPly(nearestPly);
       },
       child: CustomPaint(
         painter: _EvalGraphPainter(
@@ -58,6 +71,12 @@ class _EvalGraphPainter extends CustomPainter {
 
   static const int _maxCp = 700;
   static const double _padding = 4.0;
+  static const double _labelPaddingHorizontal = 6.0;
+  static const double _labelPaddingVertical = 3.0;
+  static const double _labelBorderRadius = 6.0;
+  static const double _labelPointGap = 6.0;
+  static const double _labelFontSize = 11.0;
+  static const double _activePointRadius = 3.0;
 
   double _cpToY(double height, int? cp, int? mate, int scaleRange) {
     final mid = height / 2;
@@ -70,6 +89,18 @@ class _EvalGraphPainter extends CustomPainter {
       return mid - (clamped / scaleRange) * usableHeight;
     }
     return mid;
+  }
+
+  String? _evaluationText(EngineEvaluation? eval) {
+    if (eval == null) return null;
+    final mate = eval.mate;
+    if (mate != null) return '#$mate';
+    final cp = eval.cp;
+    if (cp == null) return null;
+    final pawns = cp / 100.0;
+    return pawns >= 0
+        ? '+${pawns.toStringAsFixed(2)}'
+        : pawns.toStringAsFixed(2);
   }
 
   @override
@@ -97,7 +128,9 @@ class _EvalGraphPainter extends CustomPainter {
       }
     }
     // Use at least 300cp range so small evaluations are still visible
-    final scaleRange = maxAbsCp < 300 ? 300 : (maxAbsCp > _maxCp ? _maxCp : maxAbsCp);
+    final scaleRange = maxAbsCp < 300
+        ? 300
+        : (maxAbsCp > _maxCp ? _maxCp : maxAbsCp);
 
     final centerLinePaint = Paint()
       ..color = theme.colorScheme.outline.withValues(alpha: 0.3)
@@ -169,7 +202,9 @@ class _EvalGraphPainter extends CustomPainter {
       if (isWhite1 == isWhite2) {
         // Same color - single fill
         final fillPaint = Paint()
-          ..color = (isWhite1 ? Colors.white : Colors.black).withValues(alpha: 0.15);
+          ..color = (isWhite1 ? Colors.white : Colors.black).withValues(
+            alpha: 0.15,
+          );
 
         final fillPath = Path();
         fillPath.moveTo(p1.dx, mid);
@@ -187,7 +222,9 @@ class _EvalGraphPainter extends CustomPainter {
 
         // First segment fill
         final fillPaint1 = Paint()
-          ..color = (isWhite1 ? Colors.white : Colors.black).withValues(alpha: 0.15);
+          ..color = (isWhite1 ? Colors.white : Colors.black).withValues(
+            alpha: 0.15,
+          );
         final fillPath1 = Path();
         fillPath1.moveTo(p1.dx, mid);
         fillPath1.lineTo(p1.dx, p1.dy);
@@ -197,7 +234,9 @@ class _EvalGraphPainter extends CustomPainter {
 
         // Second segment fill
         final fillPaint2 = Paint()
-          ..color = (isWhite2 ? Colors.white : Colors.black).withValues(alpha: 0.15);
+          ..color = (isWhite2 ? Colors.white : Colors.black).withValues(
+            alpha: 0.15,
+          );
         final fillPath2 = Path();
         fillPath2.moveTo(crossPoint.dx, mid);
         fillPath2.lineTo(crossPoint.dx, crossPoint.dy);
@@ -210,10 +249,58 @@ class _EvalGraphPainter extends CustomPainter {
 
     if (activePly >= 0 && activePly < totalPlies) {
       final cursorX = activePly * step + step / 2;
+      final eval = activePly < evaluations.length
+          ? evaluations[activePly]
+          : null;
       final cursorPaint = Paint()
         ..color = theme.colorScheme.primary
         ..strokeWidth = 2;
       canvas.drawLine(Offset(cursorX, 0), Offset(cursorX, height), cursorPaint);
+
+      if (eval != null) {
+        final point = Offset(
+          cursorX,
+          _cpToY(height, eval.cp, eval.mate, scaleRange),
+        );
+        final activePointPaint = Paint()..color = theme.colorScheme.primary;
+        canvas.drawCircle(point, _activePointRadius, activePointPaint);
+
+        final label = _evaluationText(eval);
+        if (label != null) {
+          final textPainter = TextPainter(
+            text: TextSpan(
+              text: label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onPrimary,
+                fontSize: _labelFontSize,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+
+          final labelWidth = textPainter.width + _labelPaddingHorizontal * 2;
+          final labelHeight = textPainter.height + _labelPaddingVertical * 2;
+          final preferredLeft = point.dx + _labelPointGap;
+          final left = preferredLeft + labelWidth <= width - _padding
+              ? preferredLeft
+              : point.dx - _labelPointGap - labelWidth;
+          final top = (point.dy - labelHeight / 2).clamp(
+            _padding,
+            height - labelHeight - _padding,
+          );
+          final rect = RRect.fromRectAndRadius(
+            Rect.fromLTWH(left, top, labelWidth, labelHeight),
+            const Radius.circular(_labelBorderRadius),
+          );
+          final labelPaint = Paint()..color = theme.colorScheme.primary;
+          canvas.drawRRect(rect, labelPaint);
+          textPainter.paint(
+            canvas,
+            Offset(left + _labelPaddingHorizontal, top + _labelPaddingVertical),
+          );
+        }
+      }
     }
   }
 

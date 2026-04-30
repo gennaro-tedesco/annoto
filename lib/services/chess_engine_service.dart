@@ -295,6 +295,12 @@ class ChessEngineService {
     jobKind.value = EngineJobKind.idle;
   }
 
+  void finishGameAnalysis() {
+    if (jobKind.value == EngineJobKind.gameAnalysis) {
+      jobKind.value = EngineJobKind.idle;
+    }
+  }
+
   Future<void> dispose() async {
     stopAnalysis();
     _pollTimer?.cancel();

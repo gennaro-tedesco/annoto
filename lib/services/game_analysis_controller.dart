@@ -75,13 +75,16 @@ class GameAnalysisController {
     );
   }
 
-  Future<void> start({required List<String> mainlinePositions}) async {
+  Future<void> start({
+    required List<String> mainlinePositions,
+    bool refresh = false,
+  }) async {
     if (_disposed) return;
     _canceled = false;
 
     final total = mainlinePositions.length;
     final current = List<EngineEvaluation?>.from(
-      _progress.value.evaluations.length == total
+      !refresh && _progress.value.evaluations.length == total
           ? _progress.value.evaluations
           : List<EngineEvaluation?>.filled(total, null),
     );
@@ -93,14 +96,14 @@ class GameAnalysisController {
       status: GameAnalysisStatus.running,
     );
 
-    for (int i = 0; i < total; i++) {
-      if (_canceled || _disposed) break;
-      if (current[i] != null) continue;
+    try {
+      for (int i = 0; i < total; i++) {
+        if (_canceled || _disposed) break;
+        if (current[i] != null) continue;
 
-      final depth = analysisDepthNotifier.value;
-      final fen = mainlinePositions[i];
+        final depth = analysisDepthNotifier.value;
+        final fen = mainlinePositions[i];
 
-      try {
         final raw = await engineService.analyzePly(fen, depth);
         if (_canceled || _disposed) break;
 
@@ -143,8 +146,9 @@ class GameAnalysisController {
           completedPlies: current.where((e) => e != null).length,
           status: GameAnalysisStatus.running,
         );
-      } catch (e) {
-        if (_canceled || _disposed) break;
+      }
+    } catch (e) {
+      if (!_canceled && !_disposed) {
         _emit(
           evaluations: List.unmodifiable(current),
           totalPlies: total,
@@ -152,8 +156,10 @@ class GameAnalysisController {
           status: GameAnalysisStatus.error,
           errorMessage: e.toString(),
         );
-        return;
       }
+      return;
+    } finally {
+      engineService.finishGameAnalysis();
     }
 
     if (_disposed) return;

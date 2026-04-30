@@ -9,6 +9,7 @@ import 'package:annoto/repositories/game_analysis_repository.dart';
 import 'package:annoto/services/chess_engine_service.dart';
 import 'package:annoto/services/engine_service_scope.dart';
 import 'package:annoto/services/game_analysis_controller.dart';
+import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/widgets/eval_graph.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
@@ -208,8 +209,8 @@ class _BoardScreenState extends State<BoardScreen> {
     final progress = _gameAnalysis?.progress.value;
     if (progress?.status == GameAnalysisStatus.error &&
         progress?.errorMessage != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Analysis error: ${progress!.errorMessage}')),
+      NotificationService.showError(
+        'Analysis error: ${progress!.errorMessage}',
       );
     }
     setState(() {});
@@ -508,15 +509,11 @@ class _BoardScreenState extends State<BoardScreen> {
   Future<void> _toggleEngine() async {
     if (_engineStarting) return;
     if (_engine.jobKind.value == EngineJobKind.gameAnalysis) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Game analysis in progress')),
-      );
+      NotificationService.showInfo('Game analysis in progress');
       return;
     }
     if (selectedEnginePackageNotifier.value == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Select an engine first')));
+      NotificationService.showInfo('Select an engine first');
       return;
     }
     if (!_engineReady) {
@@ -535,9 +532,7 @@ class _BoardScreenState extends State<BoardScreen> {
             _engineStarting = false;
             _engineEnabled = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Engine failed to start: $error')),
-          );
+          NotificationService.showError('Engine failed to start: $error');
         }
         return;
       }
@@ -576,9 +571,7 @@ class _BoardScreenState extends State<BoardScreen> {
     } catch (error) {
       if (mounted) {
         setState(() => _engineEnabled = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Engine analysis failed: $error')),
-        );
+        NotificationService.showError('Engine analysis failed: $error');
       }
     }
   }
@@ -727,23 +720,19 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
-  Future<void> _onAnalysisButtonTap() async {
+  Future<void> _onAnalysisButtonTap({bool rerun = false}) async {
     final controller = _gameAnalysis;
     if (controller == null) return;
 
     final status = controller.progress.value.status;
 
     if (_engine.jobKind.value == EngineJobKind.liveAnalysis) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Disable engine before running analysis')),
-      );
+      NotificationService.showInfo('Disable engine before running analysis');
       return;
     }
 
     if (selectedEnginePackageNotifier.value == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Select an engine first')));
+      NotificationService.showInfo('Select an engine first');
       return;
     }
 
@@ -752,8 +741,9 @@ class _BoardScreenState extends State<BoardScreen> {
       return;
     }
 
-    if (status == GameAnalysisStatus.done ||
-        controller.progress.value.evaluations.any((e) => e != null)) {
+    if (!rerun &&
+        (status == GameAnalysisStatus.done ||
+            controller.progress.value.evaluations.any((e) => e != null))) {
       setState(() => _showAnalysisGraph = !_showAnalysisGraph);
       return;
     }
@@ -773,9 +763,7 @@ class _BoardScreenState extends State<BoardScreen> {
             _engineReady = false;
             _engineStarting = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Engine failed to start: $error')),
-          );
+          NotificationService.showError('Engine failed to start: $error');
         }
         return;
       }
@@ -783,12 +771,13 @@ class _BoardScreenState extends State<BoardScreen> {
 
     setState(() => _showAnalysisGraph = true);
     try {
-      await controller.start(mainlinePositions: _mainlineFens());
+      await controller.start(
+        mainlinePositions: _mainlineFens(),
+        refresh: rerun,
+      );
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Analysis failed: $error')),
-        );
+        NotificationService.showError('Analysis failed: $error');
       }
     }
   }
@@ -802,13 +791,43 @@ class _BoardScreenState extends State<BoardScreen> {
     if (progress == null) {
       return ColoredBox(color: panelColor);
     }
+    final isRunning = progress.status == GameAnalysisStatus.running;
     return ColoredBox(
       color: panelColor,
-      child: EvalGraph(
-        evaluations: progress.evaluations,
-        totalPlies: progress.totalPlies,
-        activePly: _onMainLine ? _path.length - 1 : -1,
-        onTapPly: _navigateToPly,
+      child: Stack(
+        children: [
+          EvalGraph(
+            evaluations: progress.evaluations,
+            totalPlies: progress.totalPlies,
+            activePly: _onMainLine ? _path.length - 1 : -1,
+            onTapPly: _navigateToPly,
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: IconButton(
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+              style: IconButton.styleFrom(
+                backgroundColor: theme.colorScheme.surface.withValues(
+                  alpha: 0.85,
+                ),
+                foregroundColor: theme.colorScheme.onSurface,
+              ),
+              tooltip: 'Re-run analysis',
+              icon: isRunning
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(LucideIcons.rotate_ccw),
+              onPressed: isRunning
+                  ? null
+                  : () => unawaited(_onAnalysisButtonTap(rerun: true)),
+            ),
+          ),
+        ],
       ),
     );
   }
