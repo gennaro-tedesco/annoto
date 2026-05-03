@@ -1,3 +1,4 @@
+import 'package:annoto/services/game_phase_divider.dart';
 import 'package:annoto/services/chess_engine_service.dart';
 import 'package:flutter/material.dart';
 
@@ -8,47 +9,55 @@ class EvalGraph extends StatelessWidget {
     required this.totalPlies,
     required this.activePly,
     required this.onTapPly,
+    required this.division,
   });
 
   final List<EngineEvaluation?> evaluations;
   final int totalPlies;
   final int activePly;
   final void Function(int ply) onTapPly;
+  final GameDivision division;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return GestureDetector(
-      onTapDown: (details) {
-        if (totalPlies == 0) return;
-        final box = context.findRenderObject() as RenderBox?;
-        if (box == null) return;
-        final localX = details.localPosition.dx;
-        final maxPly = totalPlies < evaluations.length
-            ? totalPlies
-            : evaluations.length;
-        if (maxPly == 0) return;
-        final step = box.size.width / totalPlies;
-        int? nearestPly;
-        double? nearestDistance;
-        for (int i = 0; i < maxPly; i++) {
-          if (evaluations[i] == null) continue;
-          final x = i * step + step / 2;
-          final distance = (localX - x).abs();
-          if (nearestDistance == null || distance < nearestDistance) {
-            nearestPly = i;
-            nearestDistance = distance;
-          }
+    void navigateFromLocalX(double localX) {
+      if (totalPlies == 0) return;
+      final box = context.findRenderObject() as RenderBox?;
+      if (box == null) return;
+      final maxPly = totalPlies < evaluations.length
+          ? totalPlies
+          : evaluations.length;
+      if (maxPly == 0) return;
+      final step = box.size.width / totalPlies;
+      int? nearestPly;
+      double? nearestDistance;
+      for (int i = 0; i < maxPly; i++) {
+        if (evaluations[i] == null) continue;
+        final x = i * step + step / 2;
+        final distance = (localX - x).abs();
+        if (nearestDistance == null || distance < nearestDistance) {
+          nearestPly = i;
+          nearestDistance = distance;
         }
-        if (nearestPly == null) return;
-        onTapPly(nearestPly);
-      },
+      }
+      if (nearestPly == null) return;
+      onTapPly(nearestPly);
+    }
+
+    return GestureDetector(
+      onTapDown: (details) => navigateFromLocalX(details.localPosition.dx),
+      onHorizontalDragStart: (details) =>
+          navigateFromLocalX(details.localPosition.dx),
+      onHorizontalDragUpdate: (details) =>
+          navigateFromLocalX(details.localPosition.dx),
       child: CustomPaint(
         painter: _EvalGraphPainter(
           evaluations: evaluations,
           totalPlies: totalPlies,
           activePly: activePly,
           theme: theme,
+          division: division,
         ),
         child: const SizedBox.expand(),
       ),
@@ -62,12 +71,14 @@ class _EvalGraphPainter extends CustomPainter {
     required this.totalPlies,
     required this.activePly,
     required this.theme,
+    required this.division,
   });
 
   final List<EngineEvaluation?> evaluations;
   final int totalPlies;
   final int activePly;
   final ThemeData theme;
+  final GameDivision division;
 
   static const int _maxCp = 700;
   static const double _padding = 4.0;
@@ -77,6 +88,53 @@ class _EvalGraphPainter extends CustomPainter {
   static const double _labelPointGap = 6.0;
   static const double _labelFontSize = 11.0;
   static const double _activePointRadius = 3.0;
+  static const double _phaseLabelTop = 8.0;
+  static const double _phaseLabelLeftPadding = 18.0;
+  static const double _phaseLabelFontSize = 9.0;
+  static const Color _phaseDividerColor = Color(0x667C7F82);
+  static const Color _phaseLabelColor = Color(0x997C7F82);
+
+  void _drawPhaseDivisions(Canvas canvas, Size size, double step) {
+    final linePaint = Paint()
+      ..color = _phaseDividerColor
+      ..strokeWidth = 1;
+
+    final labels = <({String text, double x})>[(text: 'Opening', x: 0)];
+
+    final middle = division.middle;
+    if (middle != null && middle > 0 && middle < totalPlies) {
+      final x = middle * step;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
+      labels.add((text: 'Middlegame', x: x));
+    }
+
+    final end = division.end;
+    if (end != null && end > 0 && end < totalPlies) {
+      final x = end * step;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), linePaint);
+      labels.add((text: 'Endgame', x: x));
+    }
+
+    for (final label in labels) {
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: label.text,
+          style: TextStyle(
+            color: _phaseLabelColor,
+            fontSize: _phaseLabelFontSize,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final x = (label.x + _phaseLabelLeftPadding).clamp(0.0, size.width);
+      canvas.save();
+      canvas.translate(x, _phaseLabelTop);
+      canvas.rotate(1.5707963267948966);
+      textPainter.paint(canvas, Offset.zero);
+      canvas.restore();
+    }
+  }
 
   double _cpToY(double height, int? cp, int? mate, int scaleRange) {
     final mid = height / 2;
@@ -188,14 +246,16 @@ class _EvalGraphPainter extends CustomPainter {
 
     canvas.drawPath(
       whiteFill,
-      Paint()..color = Colors.white.withValues(alpha: 0.15),
+      Paint()..color = Colors.white.withValues(alpha: 0.35),
     );
     canvas.drawPath(
       blackFill,
-      Paint()..color = Colors.black.withValues(alpha: 0.15),
+      Paint()..color = Colors.black.withValues(alpha: 0.18),
     );
 
-    // Single primary-colored evaluation line drawn on top of fills
+    _drawPhaseDivisions(canvas, size, step);
+
+    // Single evaluation line drawn on top of fills
     final linePaint = Paint()
       ..color = theme.colorScheme.primary
       ..strokeWidth = 1.5
@@ -274,5 +334,6 @@ class _EvalGraphPainter extends CustomPainter {
       old.evaluations != evaluations ||
       old.totalPlies != totalPlies ||
       old.activePly != activePly ||
+      old.division != division ||
       old.theme != theme;
 }

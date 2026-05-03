@@ -9,6 +9,7 @@ import 'package:annoto/repositories/game_analysis_repository.dart';
 import 'package:annoto/services/chess_engine_service.dart';
 import 'package:annoto/services/engine_service_scope.dart';
 import 'package:annoto/services/game_analysis_controller.dart';
+import 'package:annoto/services/game_phase_divider.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/widgets/eval_graph.dart';
 import 'package:chessground/chessground.dart';
@@ -98,6 +99,11 @@ class _BoardScreenState extends State<BoardScreen> {
   final _expandedPvs = <int>{};
   GameAnalysisController? _gameAnalysis;
   bool _showAnalysisGraph = false;
+  GameDivision _gameDivision = const GameDivision(
+    middle: null,
+    end: null,
+    plies: 0,
+  );
 
   static const _pieceSymbols = {
     'N': '♘',
@@ -153,6 +159,7 @@ class _BoardScreenState extends State<BoardScreen> {
       if (widget.engineMode) {
         _game = PgnGame.parsePgn('', initHeaders: PgnGame.emptyHeaders);
         _buildMaps(_game.moves, Chess.initial);
+        _gameDivision = divideGame(_mainlineBoards());
       } else {
         final scoresheet =
             ModalRoute.of(context)!.settings.arguments as Scoresheet;
@@ -160,6 +167,7 @@ class _BoardScreenState extends State<BoardScreen> {
         if (_games.isEmpty) _games = [scoresheet.pgn];
         _game = PgnGame.parsePgn(_games[0], initHeaders: PgnGame.emptyHeaders);
         _buildMaps(_game.moves, PgnGame.startingPosition(_game.headers));
+        _gameDivision = divideGame(_mainlineBoards());
       }
       _colorScheme = _schemeByLabel(boardColorSchemeNotifier.value);
       _pieceSet = PieceSet.values.firstWhere(
@@ -255,6 +263,18 @@ class _BoardScreenState extends State<BoardScreen> {
     return fens;
   }
 
+  List<Board> _mainlineBoards() {
+    final boards = <Board>[];
+    Position pos = PgnGame.startingPosition(_game.headers);
+    for (final node in _mainLine) {
+      final move = pos.parseSan(node.data.san);
+      if (move == null) break;
+      pos = pos.play(move);
+      boards.add(pos.board);
+    }
+    return boards;
+  }
+
   void _navigateToPly(int ply) {
     final mainline = _mainLine;
     if (mainline.isEmpty) return;
@@ -282,6 +302,7 @@ class _BoardScreenState extends State<BoardScreen> {
     setState(() {
       _currentChapter = index;
       _game = newGame;
+      _gameDivision = divideGame(_mainlineBoards());
       _path = [];
       _promotionMove = null;
       _evaluations = [];
@@ -494,6 +515,7 @@ class _BoardScreenState extends State<BoardScreen> {
     _positionMap[newChild] = newPos;
     _moveMap[newChild] = move;
     _parentMap[newChild] = _currentNode;
+    _gameDivision = divideGame(_mainlineBoards());
 
     _navigate([..._path, newChild]);
   }
@@ -801,6 +823,7 @@ class _BoardScreenState extends State<BoardScreen> {
             totalPlies: progress.totalPlies,
             activePly: _onMainLine ? _path.length - 1 : -1,
             onTapPly: _navigateToPly,
+            division: _gameDivision,
           ),
           Positioned(
             top: 4,
@@ -982,6 +1005,7 @@ class _BoardScreenState extends State<BoardScreen> {
                     ? null
                     : () => _navigate([firstMove]),
               ),
+              const SizedBox(width: 35),
               IconButton(
                 iconSize: 35,
                 icon: const Icon(Icons.navigate_next),
