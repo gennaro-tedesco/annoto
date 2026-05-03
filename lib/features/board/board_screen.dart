@@ -5,8 +5,12 @@ import 'package:annoto/app/themes.dart';
 import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/features/settings/engine_settings_screen.dart';
+import 'package:annoto/repositories/game_analysis_repository.dart';
 import 'package:annoto/services/chess_engine_service.dart';
 import 'package:annoto/services/engine_service_scope.dart';
+import 'package:annoto/services/game_analysis_controller.dart';
+import 'package:annoto/services/notification_service.dart';
+import 'package:annoto/widgets/eval_graph.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
@@ -59,8 +63,8 @@ class _BoardScreenState extends State<BoardScreen> {
   static const double _boardSelectorsGap = 6.0;
   static const double _selectorGap = 4.0;
   static const double _selectorSidePadding = 8.0;
-  static const double _selectorMiddleGap = 8.0;
   static const double _chapterDrawerWidthFactor = 0.7;
+  static const double _engineGaugeHeight = AppControlSize.compact * 0.6;
   static const double _chapterDrawerMaxWidth = 320.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -92,6 +96,8 @@ class _BoardScreenState extends State<BoardScreen> {
   List<EngineEvaluation> _evaluations = [];
   StreamSubscription<List<EngineEvaluation>>? _analysisSub;
   final _expandedPvs = <int>{};
+  GameAnalysisController? _gameAnalysis;
+  bool _showAnalysisGraph = false;
 
   static const _pieceSymbols = {
     'N': '♘',
@@ -161,6 +167,9 @@ class _BoardScreenState extends State<BoardScreen> {
         orElse: () => PieceSet.cburnett,
       );
       selectedEnginePackageNotifier.addListener(_onEnginePackageChanged);
+      if (!widget.engineMode) {
+        _buildGameAnalysisController();
+      }
       _initialised = true;
     }
   }
@@ -173,6 +182,40 @@ class _BoardScreenState extends State<BoardScreen> {
     });
   }
 
+  void _buildGameAnalysisController() {
+    final scoresheet =
+        ModalRoute.of(context)?.settings.arguments as Scoresheet?;
+    if (scoresheet == null) return;
+    final controller = GameAnalysisController(
+      engineService: _engine,
+      repository: gameAnalysisRepository,
+      scoresheetId: scoresheet.id,
+      chapterIndex: _currentChapter,
+    );
+    _gameAnalysis = controller;
+    final mainlineFens = _mainlineFens();
+    controller.loadExisting(mainlineFens).then((_) {
+      if (!mounted || _gameAnalysis != controller) return;
+      final hasResults = controller.progress.value.evaluations.any(
+        (e) => e != null,
+      );
+      if (hasResults) setState(() => _showAnalysisGraph = true);
+    });
+    controller.progress.addListener(_onAnalysisProgressChanged);
+  }
+
+  void _onAnalysisProgressChanged() {
+    if (!mounted) return;
+    final progress = _gameAnalysis?.progress.value;
+    if (progress?.status == GameAnalysisStatus.error &&
+        progress?.errorMessage != null) {
+      NotificationService.showError(
+        'Analysis error: ${progress!.errorMessage}',
+      );
+    }
+    setState(() {});
+  }
+
   @override
   void dispose() {
     selectedEnginePackageNotifier.removeListener(_onEnginePackageChanged);
@@ -183,6 +226,8 @@ class _BoardScreenState extends State<BoardScreen> {
     _verticalMoveScrollController.dispose();
     _engine.stopAnalysis();
     if (_ownsEngine) _engine.dispose();
+    _gameAnalysis?.progress.removeListener(_onAnalysisProgressChanged);
+    _gameAnalysis?.dispose();
     super.dispose();
   }
 
@@ -198,12 +243,34 @@ class _BoardScreenState extends State<BoardScreen> {
     }
   }
 
+  List<String> _mainlineFens() {
+    final fens = <String>[];
+    Position pos = PgnGame.startingPosition(_game.headers);
+    for (final node in _mainLine) {
+      final move = pos.parseSan(node.data.san);
+      if (move == null) break;
+      pos = pos.play(move);
+      fens.add(pos.fen);
+    }
+    return fens;
+  }
+
+  void _navigateToPly(int ply) {
+    final mainline = _mainLine;
+    if (mainline.isEmpty) return;
+    final clamped = ply.clamp(0, mainline.length - 1);
+    _navigate(_pathTo(mainline[clamped]));
+  }
+
   void _loadChapter(int index) {
     if (index == _currentChapter) return;
     _chapterSearchController.clear();
     _analysisSub?.cancel();
     _analysisSub = null;
     _engine.stopAnalysis();
+    _gameAnalysis?.progress.removeListener(_onAnalysisProgressChanged);
+    _gameAnalysis?.dispose();
+    _gameAnalysis = null;
     _positionMap.clear();
     _moveMap.clear();
     _parentMap.clear();
@@ -220,7 +287,9 @@ class _BoardScreenState extends State<BoardScreen> {
       _evaluations = [];
       _expandedPvs.clear();
       _engineEnabled = false;
+      _showAnalysisGraph = false;
     });
+    _buildGameAnalysisController();
   }
 
   void _openChapterDrawer() {
@@ -439,10 +508,12 @@ class _BoardScreenState extends State<BoardScreen> {
 
   Future<void> _toggleEngine() async {
     if (_engineStarting) return;
+    if (_engine.jobKind.value == EngineJobKind.gameAnalysis) {
+      NotificationService.showInfo('Game analysis in progress');
+      return;
+    }
     if (selectedEnginePackageNotifier.value == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Select an engine first')));
+      NotificationService.showInfo('Select an engine first');
       return;
     }
     if (!_engineReady) {
@@ -461,9 +532,7 @@ class _BoardScreenState extends State<BoardScreen> {
             _engineStarting = false;
             _engineEnabled = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Engine failed to start: $error')),
-          );
+          NotificationService.showError('Engine failed to start: $error');
         }
         return;
       }
@@ -502,9 +571,7 @@ class _BoardScreenState extends State<BoardScreen> {
     } catch (error) {
       if (mounted) {
         setState(() => _engineEnabled = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Engine analysis failed: $error')),
-        );
+        NotificationService.showError('Engine analysis failed: $error');
       }
     }
   }
@@ -653,6 +720,115 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
+  Future<void> _onAnalysisButtonTap({bool rerun = false}) async {
+    final controller = _gameAnalysis;
+    if (controller == null) return;
+
+    final status = controller.progress.value.status;
+
+    if (_engine.jobKind.value == EngineJobKind.liveAnalysis) {
+      NotificationService.showInfo('Disable engine before running analysis');
+      return;
+    }
+
+    if (selectedEnginePackageNotifier.value == null) {
+      NotificationService.showInfo('Select an engine first');
+      return;
+    }
+
+    if (status == GameAnalysisStatus.running) {
+      await controller.cancel();
+      return;
+    }
+
+    if (!rerun &&
+        (status == GameAnalysisStatus.done ||
+            controller.progress.value.evaluations.any((e) => e != null))) {
+      setState(() => _showAnalysisGraph = !_showAnalysisGraph);
+      return;
+    }
+
+    if (!_engine.isStarted) {
+      setState(() => _engineStarting = true);
+      try {
+        await _engine.init();
+        if (!mounted) return;
+        setState(() {
+          _engineReady = true;
+          _engineStarting = false;
+        });
+      } catch (error) {
+        if (mounted) {
+          setState(() {
+            _engineReady = false;
+            _engineStarting = false;
+          });
+          NotificationService.showError('Engine failed to start: $error');
+        }
+        return;
+      }
+    }
+
+    setState(() => _showAnalysisGraph = true);
+    try {
+      await controller.start(
+        mainlinePositions: _mainlineFens(),
+        refresh: rerun,
+      );
+    } catch (error) {
+      if (mounted) {
+        NotificationService.showError('Analysis failed: $error');
+      }
+    }
+  }
+
+  Widget _buildAnalysisGraphPanel(ThemeData theme) {
+    final panelColor = Color.alphaBlend(
+      theme.colorScheme.outline.withValues(alpha: _panelOutlineAlpha),
+      theme.scaffoldBackgroundColor,
+    );
+    final progress = _gameAnalysis?.progress.value;
+    if (progress == null) {
+      return ColoredBox(color: panelColor);
+    }
+    final isRunning = progress.status == GameAnalysisStatus.running;
+    return ColoredBox(
+      color: panelColor,
+      child: Stack(
+        children: [
+          EvalGraph(
+            evaluations: progress.evaluations,
+            totalPlies: progress.totalPlies,
+            activePly: _onMainLine ? _path.length - 1 : -1,
+            onTapPly: _navigateToPly,
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: IconButton(
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+              style: IconButton.styleFrom(
+                backgroundColor: theme.colorScheme.surface.withValues(
+                  alpha: 0.85,
+                ),
+                foregroundColor: theme.colorScheme.onSurface,
+              ),
+              tooltip: isRunning ? 'Stop analysis' : 'Re-run analysis',
+              icon: isRunning
+                  ? const Icon(Icons.stop_rounded, size: 18)
+                  : const Icon(LucideIcons.rotate_ccw),
+              onPressed: isRunning
+                  ? () => unawaited(_onAnalysisButtonTap())
+                  : () => unawaited(_onAnalysisButtonTap(rerun: true)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildEvalPanel(ThemeData theme) {
     final panelColor = Color.alphaBlend(
       theme.colorScheme.outline.withValues(alpha: _panelOutlineAlpha),
@@ -729,7 +905,38 @@ class _BoardScreenState extends State<BoardScreen> {
                 _buildBoardArea(constraints.maxWidth, boardSize),
                 const SizedBox(height: _boardSelectorsGap),
                 _buildSelectors(theme, selectorWidth),
+                if (_engineEnabled) ...[
+                  const SizedBox(height: _selectorGap),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _selectorSidePadding,
+                    ),
+                    child: SizedBox(
+                      height: _engineGaugeHeight,
+                      child: _buildEvalGauge(theme),
+                    ),
+                  ),
+                ],
                 if (_engineEnabled)
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Expanded(child: _buildEvalPanel(theme)),
+                        SizedBox(
+                          height: 1,
+                          child: ColoredBox(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        Expanded(child: _buildMoveList(theme)),
+                      ],
+                    ),
+                  )
+                else if (_showAnalysisGraph &&
+                    (_gameAnalysis?.progress.value.evaluations.any(
+                          (e) => e != null,
+                        ) ??
+                        false))
                   Expanded(
                     child: Column(
                       children: [
@@ -740,7 +947,7 @@ class _BoardScreenState extends State<BoardScreen> {
                             color: theme.colorScheme.outlineVariant,
                           ),
                         ),
-                        Expanded(child: _buildEvalPanel(theme)),
+                        Expanded(child: _buildAnalysisGraphPanel(theme)),
                       ],
                     ),
                   )
@@ -814,8 +1021,9 @@ class _BoardScreenState extends State<BoardScreen> {
         if (_verticalDragAccum < boardSize * 0.7) return;
         if ((details.primaryVelocity ?? 0).abs() < 50.0) return;
         setState(
-          () => _orientation =
-              _orientation == Side.white ? Side.black : Side.white,
+          () => _orientation = _orientation == Side.white
+              ? Side.black
+              : Side.white,
         );
       },
       child: Chessboard(
@@ -909,6 +1117,18 @@ class _BoardScreenState extends State<BoardScreen> {
               _buildBoardArea(halfWidth, boardSize),
               const SizedBox(height: _boardSelectorsGap),
               _buildSelectors(theme, halfWidth),
+              if (_engineEnabled) ...[
+                const SizedBox(height: _selectorGap),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _selectorSidePadding,
+                  ),
+                  child: SizedBox(
+                    height: _engineGaugeHeight,
+                    child: _buildEvalGauge(theme),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -926,6 +1146,25 @@ class _BoardScreenState extends State<BoardScreen> {
                 Expanded(
                   child: Column(
                     children: [
+                      Expanded(child: _buildEvalPanel(theme)),
+                      SizedBox(
+                        height: 1,
+                        child: ColoredBox(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                      Expanded(child: _buildMoveList(theme)),
+                    ],
+                  ),
+                )
+              else if (_showAnalysisGraph &&
+                  (_gameAnalysis?.progress.value.evaluations.any(
+                        (e) => e != null,
+                      ) ??
+                      false))
+                Expanded(
+                  child: Column(
+                    children: [
                       Expanded(child: _buildMoveList(theme)),
                       SizedBox(
                         height: 1,
@@ -933,7 +1172,7 @@ class _BoardScreenState extends State<BoardScreen> {
                           color: theme.colorScheme.outlineVariant,
                         ),
                       ),
-                      Expanded(child: _buildEvalPanel(theme)),
+                      Expanded(child: _buildAnalysisGraphPanel(theme)),
                     ],
                   ),
                 )
@@ -949,7 +1188,10 @@ class _BoardScreenState extends State<BoardScreen> {
   Widget _buildEnginePortraitBody(ThemeData theme, BoxConstraints constraints) {
     final boardSize = constraints.maxWidth * _engineBoardWidthFactor;
     final boardBlockHeight =
-        boardSize + _boardSelectorsGap + AppControlSize.compact;
+        boardSize +
+        _boardSelectorsGap +
+        AppControlSize.compact +
+        (_engineEnabled ? _selectorGap + _engineGaugeHeight : 0);
     final boardTop = ((constraints.maxHeight - boardBlockHeight) / 2).clamp(
       0.0,
       double.infinity,
@@ -969,6 +1211,18 @@ class _BoardScreenState extends State<BoardScreen> {
                 _buildBoardArea(constraints.maxWidth, boardSize),
                 const SizedBox(height: _boardSelectorsGap),
                 _buildSelectors(theme, constraints.maxWidth),
+                if (_engineEnabled) ...[
+                  const SizedBox(height: _selectorGap),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _selectorSidePadding,
+                    ),
+                    child: SizedBox(
+                      height: _engineGaugeHeight,
+                      child: _buildEvalGauge(theme),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1007,6 +1261,18 @@ class _BoardScreenState extends State<BoardScreen> {
               _buildBoardArea(halfWidth, boardSize),
               const SizedBox(height: _boardSelectorsGap),
               _buildSelectors(theme, halfWidth),
+              if (_engineEnabled) ...[
+                const SizedBox(height: _selectorGap),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _selectorSidePadding,
+                  ),
+                  child: SizedBox(
+                    height: _engineGaugeHeight,
+                    child: _buildEvalGauge(theme),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1017,13 +1283,13 @@ class _BoardScreenState extends State<BoardScreen> {
         Expanded(
           child: Column(
             children: [
-              if (hasMoves) Expanded(child: _buildMoveList(theme)),
+              if (_engineEnabled) Expanded(child: _buildEvalPanel(theme)),
               if (hasMoves && _engineEnabled)
                 SizedBox(
                   height: 1,
                   child: ColoredBox(color: theme.colorScheme.outlineVariant),
                 ),
-              if (_engineEnabled) Expanded(child: _buildEvalPanel(theme)),
+              if (hasMoves) Expanded(child: _buildMoveList(theme)),
             ],
           ),
         ),
@@ -1181,15 +1447,13 @@ class _BoardScreenState extends State<BoardScreen> {
 
   Widget _buildSelectors(ThemeData theme, double boardSize) {
     const buttonSize = AppControlSize.compact;
-    const engineGaugeHeight = buttonSize * 0.6;
     const primaryIconSize = AppIconSize.inlineAction;
     const secondaryIconSize = AppIconSize.smallStatus;
     const buttonConstraints = BoxConstraints.tightFor(
       width: buttonSize,
       height: buttonSize,
     );
-    const sideSlotWidth = buttonSize * 3 + _selectorGap * 2;
-    const middleInset = sideSlotWidth + _selectorMiddleGap;
+    const sideSlotWidth = buttonSize * 4 + _selectorGap * 3;
 
     Widget wrapCompactControl(Widget child) {
       return SizedBox(width: buttonSize, height: buttonSize, child: child);
@@ -1244,7 +1508,11 @@ class _BoardScreenState extends State<BoardScreen> {
           setState(() => _pieceSet = set);
         },
         itemBuilder: (_) => [
-          for (final set in [PieceSet.alpha, PieceSet.cburnett, PieceSet.merida])
+          for (final set in [
+            PieceSet.alpha,
+            PieceSet.cburnett,
+            PieceSet.merida,
+          ])
             PopupMenuItem(value: set, child: Text(set.label)),
         ],
       ),
@@ -1294,6 +1562,61 @@ class _BoardScreenState extends State<BoardScreen> {
       ),
     );
 
+    final analysisProgress = _gameAnalysis?.progress.value;
+    final analysisStatus = analysisProgress?.status ?? GameAnalysisStatus.idle;
+    final analysisHasResults =
+        analysisProgress?.evaluations.any((e) => e != null) ?? false;
+
+    final analysisBtn = !widget.engineMode
+        ? wrapCompactControl(
+            IconButton(
+              iconSize: primaryIconSize,
+              constraints: buttonConstraints,
+              padding: EdgeInsets.zero,
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                foregroundColor: analysisStatus == GameAnalysisStatus.error
+                    ? theme.colorScheme.error
+                    : (_showAnalysisGraph && analysisHasResults)
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface,
+              ),
+              icon: analysisStatus == GameAnalysisStatus.running
+                  ? SizedBox.square(
+                      dimension: primaryIconSize,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            value: (analysisProgress!.totalPlies > 0)
+                                ? analysisProgress.completedPlies /
+                                      analysisProgress.totalPlies
+                                : null,
+                            strokeWidth: 2,
+                          ),
+                          if (analysisProgress.totalPlies > 0)
+                            Text(
+                              '${(analysisProgress.completedPlies / analysisProgress.totalPlies * 100).round()}%',
+                              style: const TextStyle(
+                                fontSize: 7,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                        ],
+                      ),
+                    )
+                  : const Icon(LucideIcons.activity),
+              tooltip: analysisStatus == GameAnalysisStatus.running
+                  ? 'Stop analysis'
+                  : 'Analyse game',
+              onPressed: () => unawaited(_onAnalysisButtonTap()),
+              onLongPress: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const EngineSettingsScreen()),
+              ),
+            ),
+          )
+        : null;
+
     final boardControlsGroup = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1332,6 +1655,10 @@ class _BoardScreenState extends State<BoardScreen> {
     final engineControlsGroup = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (analysisBtn != null) ...[
+          analysisBtn,
+          const SizedBox(width: _selectorGap),
+        ],
         cpuBtn,
         const SizedBox(width: _selectorGap),
         incrementBtn,
@@ -1359,17 +1686,6 @@ class _BoardScreenState extends State<BoardScreen> {
                     ),
                   ),
                 ),
-                if (_engineEnabled)
-                  Positioned.fill(
-                    left: middleInset,
-                    right: middleInset,
-                    child: Center(
-                      child: SizedBox(
-                        height: engineGaugeHeight,
-                        child: _buildEvalGauge(theme),
-                      ),
-                    ),
-                  ),
                 Align(
                   alignment: Alignment.centerRight,
                   child: SizedBox(
@@ -1399,8 +1715,15 @@ class _BoardScreenState extends State<BoardScreen> {
     }
 
     if (_engineEnabled) {
-      final pgnChip = Chip(
-        label: Text(
+      final pgnChip = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: theme.colorScheme.outline.withValues(alpha: 0.4),
+          ),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
           'PGN',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.primary,
@@ -1408,10 +1731,6 @@ class _BoardScreenState extends State<BoardScreen> {
             height: 1,
           ),
         ),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-        padding: EdgeInsets.zero,
       );
       final tokens = <Widget>[];
       int ply = 0;
@@ -1605,15 +1924,17 @@ class _BoardScreenState extends State<BoardScreen> {
             : null,
         child: Text(
           _toFigurine(san),
-          style: (widget.engineMode
-                  ? theme.textTheme.bodyLarge?.copyWith(
-                      fontSize: (theme.textTheme.bodyLarge?.fontSize ?? 16) + 2,
-                    )
-                  : theme.textTheme.bodyLarge)
-              ?.copyWith(
-            color: active ? theme.colorScheme.onPrimary : null,
-            fontWeight: active ? FontWeight.w600 : null,
-          ),
+          style:
+              (widget.engineMode
+                      ? theme.textTheme.bodyLarge?.copyWith(
+                          fontSize:
+                              (theme.textTheme.bodyLarge?.fontSize ?? 16) + 2,
+                        )
+                      : theme.textTheme.bodyLarge)
+                  ?.copyWith(
+                    color: active ? theme.colorScheme.onPrimary : null,
+                    fontWeight: active ? FontWeight.w600 : null,
+                  ),
         ),
       ),
     );

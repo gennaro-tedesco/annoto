@@ -10,6 +10,7 @@ final engineThreadsNotifier = ValueNotifier<int>(1);
 final engineHashNotifier = ValueNotifier<int>(16);
 final engineNameNotifier = ValueNotifier<String?>(null);
 final selectedEnginePackageNotifier = ValueNotifier<String?>(null);
+final analysisDepthNotifier = ValueNotifier<int>(18);
 
 enum AppThemeOption {
   none,
