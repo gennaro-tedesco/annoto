@@ -151,36 +151,7 @@ class _EvalGraphPainter extends CustomPainter {
 
     if (points.isEmpty) return;
 
-    final whitePaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-    final blackPaint = Paint()
-      ..color = Colors.black87
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.round;
-
-    for (int i = 0; i < points.length - 1; i++) {
-      final (ply1, p1, isWhite1) = points[i];
-      final (ply2, p2, isWhite2) = points[i + 1];
-      if (ply2 != ply1 + 1) continue;
-
-      if (isWhite1 == isWhite2) {
-        canvas.drawLine(p1, p2, isWhite1 ? whitePaint : blackPaint);
-      } else {
-        final t = (p1.dy - mid) / (p1.dy - p2.dy);
-        final crossPoint = Offset(p1.dx + t * (p2.dx - p1.dx), mid);
-        canvas.drawLine(p1, crossPoint, isWhite1 ? whitePaint : blackPaint);
-        canvas.drawLine(crossPoint, p2, isWhite2 ? whitePaint : blackPaint);
-      }
-    }
-
-    final pointPaint = Paint();
-    for (final (_, p, isWhite) in points) {
-      pointPaint.color = isWhite ? Colors.white : Colors.black87;
-      canvas.drawCircle(p, 1.5, pointPaint);
-    }
-
+    // Fill areas drawn first so the line renders on top
     final whiteFill = Path();
     final blackFill = Path();
 
@@ -223,6 +194,18 @@ class _EvalGraphPainter extends CustomPainter {
       blackFill,
       Paint()..color = Colors.black.withValues(alpha: 0.15),
     );
+
+    // Single primary-colored evaluation line drawn on top of fills
+    final linePaint = Paint()
+      ..color = theme.colorScheme.primary
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    for (int i = 0; i < points.length - 1; i++) {
+      final (ply1, p1, _) = points[i];
+      final (ply2, p2, _) = points[i + 1];
+      if (ply2 != ply1 + 1) continue;
+      canvas.drawLine(p1, p2, linePaint);
+    }
 
     if (activePly >= 0 && activePly < totalPlies) {
       final cursorX = activePly * step + step / 2;
