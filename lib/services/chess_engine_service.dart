@@ -286,13 +286,11 @@ class ChessEngineService {
 
   Future<void> cancelGameAnalysis() async {
     if (jobKind.value != EngineJobKind.gameAnalysis) return;
-    if (_searching) {
-      _bestMoveCompleter = Completer<void>();
-      await _bridge.send('stop');
-      await _waitFor(_bestMoveCompleter!, const Duration(seconds: 2));
-    }
+    _bestMoveCompleter?.complete();
+    _bestMoveCompleter = null;
     _searching = false;
     jobKind.value = EngineJobKind.idle;
+    await _bridge.send('stop');
   }
 
   void finishGameAnalysis() {

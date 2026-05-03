@@ -63,8 +63,8 @@ class _BoardScreenState extends State<BoardScreen> {
   static const double _boardSelectorsGap = 6.0;
   static const double _selectorGap = 4.0;
   static const double _selectorSidePadding = 8.0;
-  static const double _selectorMiddleGap = 8.0;
   static const double _chapterDrawerWidthFactor = 0.7;
+  static const double _engineGaugeHeight = AppControlSize.compact * 0.6;
   static const double _chapterDrawerMaxWidth = 320.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -194,8 +194,8 @@ class _BoardScreenState extends State<BoardScreen> {
     );
     _gameAnalysis = controller;
     final mainlineFens = _mainlineFens();
-    controller.loadExisting(mainlineFens.length).then((_) {
-      if (!mounted) return;
+    controller.loadExisting(mainlineFens).then((_) {
+      if (!mounted || _gameAnalysis != controller) return;
       final hasResults = controller.progress.value.evaluations.any(
         (e) => e != null,
       );
@@ -815,15 +815,12 @@ class _BoardScreenState extends State<BoardScreen> {
                 ),
                 foregroundColor: theme.colorScheme.onSurface,
               ),
-              tooltip: 'Re-run analysis',
+              tooltip: isRunning ? 'Stop analysis' : 'Re-run analysis',
               icon: isRunning
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const Icon(Icons.stop_rounded, size: 18)
                   : const Icon(LucideIcons.rotate_ccw),
               onPressed: isRunning
-                  ? null
+                  ? () => unawaited(_onAnalysisButtonTap())
                   : () => unawaited(_onAnalysisButtonTap(rerun: true)),
             ),
           ),
@@ -908,18 +905,30 @@ class _BoardScreenState extends State<BoardScreen> {
                 _buildBoardArea(constraints.maxWidth, boardSize),
                 const SizedBox(height: _boardSelectorsGap),
                 _buildSelectors(theme, selectorWidth),
+                if (_engineEnabled) ...[
+                  const SizedBox(height: _selectorGap),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _selectorSidePadding,
+                    ),
+                    child: SizedBox(
+                      height: _engineGaugeHeight,
+                      child: _buildEvalGauge(theme),
+                    ),
+                  ),
+                ],
                 if (_engineEnabled)
                   Expanded(
                     child: Column(
                       children: [
-                        Expanded(child: _buildMoveList(theme)),
+                        Expanded(child: _buildEvalPanel(theme)),
                         SizedBox(
                           height: 1,
                           child: ColoredBox(
                             color: theme.colorScheme.outlineVariant,
                           ),
                         ),
-                        Expanded(child: _buildEvalPanel(theme)),
+                        Expanded(child: _buildMoveList(theme)),
                       ],
                     ),
                   )
@@ -1116,6 +1125,18 @@ class _BoardScreenState extends State<BoardScreen> {
               _buildBoardArea(halfWidth, boardSize),
               const SizedBox(height: _boardSelectorsGap),
               _buildSelectors(theme, halfWidth),
+              if (_engineEnabled) ...[
+                const SizedBox(height: _selectorGap),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _selectorSidePadding,
+                  ),
+                  child: SizedBox(
+                    height: _engineGaugeHeight,
+                    child: _buildEvalGauge(theme),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1133,14 +1154,14 @@ class _BoardScreenState extends State<BoardScreen> {
                 Expanded(
                   child: Column(
                     children: [
-                      Expanded(child: _buildMoveList(theme)),
+                      Expanded(child: _buildEvalPanel(theme)),
                       SizedBox(
                         height: 1,
                         child: ColoredBox(
                           color: theme.colorScheme.outlineVariant,
                         ),
                       ),
-                      Expanded(child: _buildEvalPanel(theme)),
+                      Expanded(child: _buildMoveList(theme)),
                     ],
                   ),
                 )
@@ -1175,7 +1196,10 @@ class _BoardScreenState extends State<BoardScreen> {
   Widget _buildEnginePortraitBody(ThemeData theme, BoxConstraints constraints) {
     final boardSize = constraints.maxWidth * _engineBoardWidthFactor;
     final boardBlockHeight =
-        boardSize + _boardSelectorsGap + AppControlSize.compact;
+        boardSize +
+        _boardSelectorsGap +
+        AppControlSize.compact +
+        (_engineEnabled ? _selectorGap + _engineGaugeHeight : 0);
     final boardTop = ((constraints.maxHeight - boardBlockHeight) / 2).clamp(
       0.0,
       double.infinity,
@@ -1195,6 +1219,18 @@ class _BoardScreenState extends State<BoardScreen> {
                 _buildBoardArea(constraints.maxWidth, boardSize),
                 const SizedBox(height: _boardSelectorsGap),
                 _buildSelectors(theme, constraints.maxWidth),
+                if (_engineEnabled) ...[
+                  const SizedBox(height: _selectorGap),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: _selectorSidePadding,
+                    ),
+                    child: SizedBox(
+                      height: _engineGaugeHeight,
+                      child: _buildEvalGauge(theme),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1233,6 +1269,18 @@ class _BoardScreenState extends State<BoardScreen> {
               _buildBoardArea(halfWidth, boardSize),
               const SizedBox(height: _boardSelectorsGap),
               _buildSelectors(theme, halfWidth),
+              if (_engineEnabled) ...[
+                const SizedBox(height: _selectorGap),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: _selectorSidePadding,
+                  ),
+                  child: SizedBox(
+                    height: _engineGaugeHeight,
+                    child: _buildEvalGauge(theme),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1243,13 +1291,13 @@ class _BoardScreenState extends State<BoardScreen> {
         Expanded(
           child: Column(
             children: [
-              if (hasMoves) Expanded(child: _buildMoveList(theme)),
+              if (_engineEnabled) Expanded(child: _buildEvalPanel(theme)),
               if (hasMoves && _engineEnabled)
                 SizedBox(
                   height: 1,
                   child: ColoredBox(color: theme.colorScheme.outlineVariant),
                 ),
-              if (_engineEnabled) Expanded(child: _buildEvalPanel(theme)),
+              if (hasMoves) Expanded(child: _buildMoveList(theme)),
             ],
           ),
         ),
@@ -1407,7 +1455,6 @@ class _BoardScreenState extends State<BoardScreen> {
 
   Widget _buildSelectors(ThemeData theme, double boardSize) {
     const buttonSize = AppControlSize.compact;
-    const engineGaugeHeight = buttonSize * 0.6;
     const primaryIconSize = AppIconSize.inlineAction;
     const secondaryIconSize = AppIconSize.smallStatus;
     const buttonConstraints = BoxConstraints.tightFor(
@@ -1415,7 +1462,6 @@ class _BoardScreenState extends State<BoardScreen> {
       height: buttonSize,
     );
     const sideSlotWidth = buttonSize * 4 + _selectorGap * 3;
-    const middleInset = sideSlotWidth + _selectorMiddleGap;
 
     Widget wrapCompactControl(Widget child) {
       return SizedBox(width: buttonSize, height: buttonSize, child: child);
@@ -1546,12 +1592,25 @@ class _BoardScreenState extends State<BoardScreen> {
               icon: analysisStatus == GameAnalysisStatus.running
                   ? SizedBox.square(
                       dimension: primaryIconSize,
-                      child: CircularProgressIndicator(
-                        value: (analysisProgress!.totalPlies > 0)
-                            ? analysisProgress.completedPlies /
-                                  analysisProgress.totalPlies
-                            : null,
-                        strokeWidth: 2,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          CircularProgressIndicator(
+                            value: (analysisProgress!.totalPlies > 0)
+                                ? analysisProgress.completedPlies /
+                                      analysisProgress.totalPlies
+                                : null,
+                            strokeWidth: 2,
+                          ),
+                          if (analysisProgress.totalPlies > 0)
+                            Text(
+                              '${(analysisProgress.completedPlies / analysisProgress.totalPlies * 100).round()}%',
+                              style: const TextStyle(
+                                fontSize: 7,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                        ],
                       ),
                     )
                   : const Icon(LucideIcons.activity),
@@ -1635,17 +1694,6 @@ class _BoardScreenState extends State<BoardScreen> {
                     ),
                   ),
                 ),
-                if (_engineEnabled)
-                  Positioned.fill(
-                    left: middleInset,
-                    right: middleInset,
-                    child: Center(
-                      child: SizedBox(
-                        height: engineGaugeHeight,
-                        child: _buildEvalGauge(theme),
-                      ),
-                    ),
-                  ),
                 Align(
                   alignment: Alignment.centerRight,
                   child: SizedBox(
@@ -1675,8 +1723,15 @@ class _BoardScreenState extends State<BoardScreen> {
     }
 
     if (_engineEnabled) {
-      final pgnChip = Chip(
-        label: Text(
+      final pgnChip = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: theme.colorScheme.outline.withValues(alpha: 0.4),
+          ),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
           'PGN',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.primary,
@@ -1684,10 +1739,6 @@ class _BoardScreenState extends State<BoardScreen> {
             height: 1,
           ),
         ),
-        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
-        padding: EdgeInsets.zero,
       );
       final tokens = <Widget>[];
       int ply = 0;

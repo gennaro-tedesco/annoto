@@ -50,26 +50,31 @@ class GameAnalysisController {
   bool _canceled = false;
   bool _disposed = false;
 
-  Future<void> loadExisting(int totalPlies) async {
+  static String _fenPosition(String fen) => fen.split(' ').take(4).join(' ');
+
+  Future<void> loadExisting(List<String> mainlinePositions) async {
+    final totalPlies = mainlinePositions.length;
     final stored = await repository.loadChapter(scoresheetId, chapterIndex);
     if (stored == null) return;
     final evals = List<EngineEvaluation?>.filled(totalPlies, null);
     for (final p in stored.plies) {
-      if (p.ply < totalPlies) {
-        evals[p.ply] = EngineEvaluation(
-          cp: p.cp,
-          mate: p.mate,
-          bestMove: p.bestMove,
-          pv: p.pv,
-          depth: p.depth,
-        );
-      }
+      if (p.ply >= totalPlies) continue;
+      if (_fenPosition(p.fen) != _fenPosition(mainlinePositions[p.ply]))
+        continue;
+      evals[p.ply] = EngineEvaluation(
+        cp: p.cp,
+        mate: p.mate,
+        bestMove: p.bestMove,
+        pv: p.pv,
+        depth: p.depth,
+      );
     }
+    final completedPlies = evals.where((e) => e != null).length;
     _emit(
       evaluations: evals,
       totalPlies: totalPlies,
-      completedPlies: stored.completedPlies,
-      status: stored.completedPlies >= totalPlies
+      completedPlies: completedPlies,
+      status: completedPlies >= totalPlies
           ? GameAnalysisStatus.done
           : GameAnalysisStatus.idle,
     );
@@ -169,20 +174,25 @@ class GameAnalysisController {
       evaluations: List.unmodifiable(current),
       totalPlies: total,
       completedPlies: completed,
-      status: _canceled
-          ? (completed > 0 ? GameAnalysisStatus.idle : GameAnalysisStatus.idle)
-          : GameAnalysisStatus.done,
+      status: _canceled ? GameAnalysisStatus.idle : GameAnalysisStatus.done,
     );
   }
 
   Future<void> cancel() async {
     _canceled = true;
     await engineService.cancelGameAnalysis();
+    _emit(
+      evaluations: _progress.value.evaluations,
+      totalPlies: _progress.value.totalPlies,
+      completedPlies: _progress.value.completedPlies,
+      status: GameAnalysisStatus.idle,
+    );
   }
 
   void dispose() {
     _disposed = true;
     _canceled = true;
+    unawaited(engineService.cancelGameAnalysis());
     _progress.dispose();
   }
 

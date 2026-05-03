@@ -112,10 +112,11 @@ class _EvalGraphPainter extends CustomPainter {
     final mid = height / 2;
     final step = width / totalPlies;
 
-    final bgPaint = Paint()..color = theme.scaffoldBackgroundColor;
-    canvas.drawRect(Rect.fromLTWH(0, 0, width, height), bgPaint);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, width, height),
+      Paint()..color = theme.scaffoldBackgroundColor,
+    );
 
-    // Find the actual max evaluation in this game for dynamic scaling
     int maxAbsCp = 0;
     for (final eval in evaluations) {
       if (eval == null) continue;
@@ -127,22 +128,22 @@ class _EvalGraphPainter extends CustomPainter {
         maxAbsCp = maxAbsCp > eval.cp!.abs() ? maxAbsCp : eval.cp!.abs();
       }
     }
-    // Use at least 300cp range so small evaluations are still visible
     final scaleRange = maxAbsCp < 300
         ? 300
         : (maxAbsCp > _maxCp ? _maxCp : maxAbsCp);
 
-    final centerLinePaint = Paint()
-      ..color = theme.colorScheme.outline.withValues(alpha: 0.3)
-      ..strokeWidth = 1;
-    canvas.drawLine(Offset(0, mid), Offset(width, mid), centerLinePaint);
+    canvas.drawLine(
+      Offset(0, mid),
+      Offset(width, mid),
+      Paint()
+        ..color = theme.colorScheme.outline.withValues(alpha: 0.3)
+        ..strokeWidth = 1,
+    );
 
-    // Build list of valid (ply, point) pairs
     final points = <(int ply, Offset point, bool isWhite)>[];
     for (int i = 0; i < totalPlies; i++) {
       final eval = i < evaluations.length ? evaluations[i] : null;
       if (eval == null) continue;
-
       final x = i * step + step / 2;
       final y = _cpToY(height, eval.cp, eval.mate, scaleRange);
       points.add((i, Offset(x, y), y < mid));
@@ -150,120 +151,102 @@ class _EvalGraphPainter extends CustomPainter {
 
     if (points.isEmpty) return;
 
-    // Draw line segments - split at center line when crossing
+    final whitePaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    final blackPaint = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
     for (int i = 0; i < points.length - 1; i++) {
       final (ply1, p1, isWhite1) = points[i];
       final (ply2, p2, isWhite2) = points[i + 1];
-
-      // Only connect consecutive plies
       if (ply2 != ply1 + 1) continue;
 
       if (isWhite1 == isWhite2) {
-        // Same color - draw single segment
-        final linePaint = Paint()
-          ..color = isWhite1 ? Colors.white : Colors.black87
-          ..strokeWidth = 1.5
-          ..strokeCap = StrokeCap.round;
-        canvas.drawLine(p1, p2, linePaint);
+        canvas.drawLine(p1, p2, isWhite1 ? whitePaint : blackPaint);
       } else {
-        // Crossing the center - find intersection point and draw two segments
         final t = (p1.dy - mid) / (p1.dy - p2.dy);
-        final crossX = p1.dx + t * (p2.dx - p1.dx);
-        final crossPoint = Offset(crossX, mid);
-
-        final firstPaint = Paint()
-          ..color = isWhite1 ? Colors.white : Colors.black87
-          ..strokeWidth = 1.5
-          ..strokeCap = StrokeCap.round;
-        final secondPaint = Paint()
-          ..color = isWhite2 ? Colors.white : Colors.black87
-          ..strokeWidth = 1.5
-          ..strokeCap = StrokeCap.round;
-
-        canvas.drawLine(p1, crossPoint, firstPaint);
-        canvas.drawLine(crossPoint, p2, secondPaint);
+        final crossPoint = Offset(p1.dx + t * (p2.dx - p1.dx), mid);
+        canvas.drawLine(p1, crossPoint, isWhite1 ? whitePaint : blackPaint);
+        canvas.drawLine(crossPoint, p2, isWhite2 ? whitePaint : blackPaint);
       }
     }
 
-    // Draw points
     final pointPaint = Paint();
     for (final (_, p, isWhite) in points) {
       pointPaint.color = isWhite ? Colors.white : Colors.black87;
       canvas.drawCircle(p, 1.5, pointPaint);
     }
 
-    // Fill area under the graph - split at center when crossing
+    final whiteFill = Path();
+    final blackFill = Path();
+
     for (int i = 0; i < points.length - 1; i++) {
       final (ply1, p1, isWhite1) = points[i];
       final (ply2, p2, isWhite2) = points[i + 1];
-
       if (ply2 != ply1 + 1) continue;
 
       if (isWhite1 == isWhite2) {
-        // Same color - single fill
-        final fillPaint = Paint()
-          ..color = (isWhite1 ? Colors.white : Colors.black).withValues(
-            alpha: 0.15,
-          );
-
-        final fillPath = Path();
-        fillPath.moveTo(p1.dx, mid);
-        fillPath.lineTo(p1.dx, p1.dy);
-        fillPath.lineTo(p2.dx, p2.dy);
-        fillPath.lineTo(p2.dx, mid);
-        fillPath.close();
-
-        canvas.drawPath(fillPath, fillPaint);
+        final path = isWhite1 ? whiteFill : blackFill;
+        path.moveTo(p1.dx, mid);
+        path.lineTo(p1.dx, p1.dy);
+        path.lineTo(p2.dx, p2.dy);
+        path.lineTo(p2.dx, mid);
+        path.close();
       } else {
-        // Crossing the center - find intersection and split fill
         final t = (p1.dy - mid) / (p1.dy - p2.dy);
-        final crossX = p1.dx + t * (p2.dx - p1.dx);
-        final crossPoint = Offset(crossX, mid);
+        final crossPoint = Offset(p1.dx + t * (p2.dx - p1.dx), mid);
 
-        // First segment fill
-        final fillPaint1 = Paint()
-          ..color = (isWhite1 ? Colors.white : Colors.black).withValues(
-            alpha: 0.15,
-          );
-        final fillPath1 = Path();
-        fillPath1.moveTo(p1.dx, mid);
-        fillPath1.lineTo(p1.dx, p1.dy);
-        fillPath1.lineTo(crossPoint.dx, crossPoint.dy);
-        fillPath1.close();
-        canvas.drawPath(fillPath1, fillPaint1);
+        final path1 = isWhite1 ? whiteFill : blackFill;
+        path1.moveTo(p1.dx, mid);
+        path1.lineTo(p1.dx, p1.dy);
+        path1.lineTo(crossPoint.dx, crossPoint.dy);
+        path1.close();
 
-        // Second segment fill
-        final fillPaint2 = Paint()
-          ..color = (isWhite2 ? Colors.white : Colors.black).withValues(
-            alpha: 0.15,
-          );
-        final fillPath2 = Path();
-        fillPath2.moveTo(crossPoint.dx, mid);
-        fillPath2.lineTo(crossPoint.dx, crossPoint.dy);
-        fillPath2.lineTo(p2.dx, p2.dy);
-        fillPath2.lineTo(p2.dx, mid);
-        fillPath2.close();
-        canvas.drawPath(fillPath2, fillPaint2);
+        final path2 = isWhite2 ? whiteFill : blackFill;
+        path2.moveTo(crossPoint.dx, mid);
+        path2.lineTo(crossPoint.dx, crossPoint.dy);
+        path2.lineTo(p2.dx, p2.dy);
+        path2.lineTo(p2.dx, mid);
+        path2.close();
       }
     }
+
+    canvas.drawPath(
+      whiteFill,
+      Paint()..color = Colors.white.withValues(alpha: 0.15),
+    );
+    canvas.drawPath(
+      blackFill,
+      Paint()..color = Colors.black.withValues(alpha: 0.15),
+    );
 
     if (activePly >= 0 && activePly < totalPlies) {
       final cursorX = activePly * step + step / 2;
       final eval = activePly < evaluations.length
           ? evaluations[activePly]
           : null;
-      final cursorPaint = Paint()
-        ..color = theme.colorScheme.primary
-        ..strokeWidth = 2;
-      canvas.drawLine(Offset(cursorX, 0), Offset(cursorX, height), cursorPaint);
+      canvas.drawLine(
+        Offset(cursorX, 0),
+        Offset(cursorX, height),
+        Paint()
+          ..color = theme.colorScheme.primary
+          ..strokeWidth = 2,
+      );
 
       if (eval != null) {
         final point = Offset(
           cursorX,
           _cpToY(height, eval.cp, eval.mate, scaleRange),
         );
-        final activePointPaint = Paint()..color = theme.colorScheme.primary;
-        canvas.drawCircle(point, _activePointRadius, activePointPaint);
+        canvas.drawCircle(
+          point,
+          _activePointRadius,
+          Paint()..color = theme.colorScheme.primary,
+        );
 
         final label = _evaluationText(eval);
         if (label != null) {
@@ -293,8 +276,7 @@ class _EvalGraphPainter extends CustomPainter {
             Rect.fromLTWH(left, top, labelWidth, labelHeight),
             const Radius.circular(_labelBorderRadius),
           );
-          final labelPaint = Paint()..color = theme.colorScheme.primary;
-          canvas.drawRRect(rect, labelPaint);
+          canvas.drawRRect(rect, Paint()..color = theme.colorScheme.primary);
           textPainter.paint(
             canvas,
             Offset(left + _labelPaddingHorizontal, top + _labelPaddingVertical),
@@ -308,5 +290,6 @@ class _EvalGraphPainter extends CustomPainter {
   bool shouldRepaint(_EvalGraphPainter old) =>
       old.evaluations != evaluations ||
       old.totalPlies != totalPlies ||
-      old.activePly != activePly;
+      old.activePly != activePly ||
+      old.theme != theme;
 }
