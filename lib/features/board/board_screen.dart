@@ -767,17 +767,13 @@ class _BoardScreenState extends State<BoardScreen> {
               const Spacer(),
               IconButton(
                 iconSize: 35,
-                icon: const Icon(Icons.first_page),
-                onPressed: firstMove == null || isAtFirstMove
-                    ? null
-                    : () => _navigate([firstMove]),
-              ),
-              IconButton(
-                iconSize: 35,
                 icon: const Icon(Icons.navigate_before),
                 onPressed: isFirst
                     ? null
                     : () => _navigate(_path.sublist(0, _path.length - 1)),
+                onLongPress: firstMove == null || isAtFirstMove
+                    ? null
+                    : () => _navigate([firstMove]),
               ),
               IconButton(
                 iconSize: 35,
@@ -785,11 +781,7 @@ class _BoardScreenState extends State<BoardScreen> {
                 onPressed: isLast
                     ? null
                     : () => _navigate([..._path, _currentNode.children.first]),
-              ),
-              IconButton(
-                iconSize: 35,
-                icon: const Icon(Icons.last_page),
-                onPressed: isLast
+                onLongPress: isLast
                     ? null
                     : () {
                         var node = _currentNode;
