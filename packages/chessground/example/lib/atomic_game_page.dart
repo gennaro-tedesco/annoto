@@ -58,8 +58,10 @@ class _AtomicGamePageState extends State<AtomicGamePage> {
                 child: Center(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      final size =
-                          min(constraints.maxWidth, constraints.maxHeight);
+                      final size = min(
+                        constraints.maxWidth,
+                        constraints.maxHeight,
+                      );
                       return Chessboard(
                         size: size,
                         settings: ChessboardSettings(
@@ -72,9 +74,10 @@ class _AtomicGamePageState extends State<AtomicGamePage> {
                         lastMove: lastMove,
                         explosionSquares: explosionSquares,
                         game: GameData(
-                          playerSide: position.isGameOver
-                              ? PlayerSide.none
-                              : PlayerSide.white,
+                          playerSide:
+                              position.isGameOver
+                                  ? PlayerSide.none
+                                  : PlayerSide.white,
                           validMoves: validMoves,
                           sideToMove: position.turn,
                           isCheck: position.isCheck,
@@ -184,9 +187,10 @@ class _AtomicGamePageState extends State<AtomicGamePage> {
     // Prefer captures so explosions are demonstrated more often.
     final captures =
         allMoves.where((m) => position.board.occupied.has(m.to)).toList();
-    NormalMove mv = (captures.isNotEmpty && random.nextDouble() < 0.65
-        ? (captures..shuffle(random)).first
-        : (allMoves..shuffle(random)).first);
+    NormalMove mv =
+        (captures.isNotEmpty && random.nextDouble() < 0.65
+            ? (captures..shuffle(random)).first
+            : (allMoves..shuffle(random)).first);
 
     if (_isPromotionPawnMove(mv)) {
       mv = mv.withPromotion(Role.queen);
@@ -212,9 +216,10 @@ class _StatusBar extends StatelessWidget {
         null => "It's a draw!",
       };
     } else {
-      text = position.turn == Side.white
-          ? 'Your turn (White)'
-          : 'Black is thinking…';
+      text =
+          position.turn == Side.white
+              ? 'Your turn (White)'
+              : 'Black is thinking…';
     }
 
     return Text(
@@ -248,24 +253,26 @@ class _SettingsRow extends StatelessWidget {
         _PickerChip(
           label: 'Board',
           value: boardTheme.label,
-          onTap: () => _showPicker<BoardTheme>(
-            context,
-            choices: BoardTheme.values,
-            selected: boardTheme,
-            labelOf: (t) => t.label,
-            onChanged: onBoardThemeChanged,
-          ),
+          onTap:
+              () => _showPicker<BoardTheme>(
+                context,
+                choices: BoardTheme.values,
+                selected: boardTheme,
+                labelOf: (t) => t.label,
+                onChanged: onBoardThemeChanged,
+              ),
         ),
         _PickerChip(
           label: 'Pieces',
           value: pieceSet.label,
-          onTap: () => _showPicker<PieceSet>(
-            context,
-            choices: PieceSet.values,
-            selected: pieceSet,
-            labelOf: (p) => p.label,
-            onChanged: onPieceSetChanged,
-          ),
+          onTap:
+              () => _showPicker<PieceSet>(
+                context,
+                choices: PieceSet.values,
+                selected: pieceSet,
+                labelOf: (p) => p.label,
+                onChanged: onPieceSetChanged,
+              ),
         ),
       ],
     );
@@ -280,36 +287,43 @@ class _SettingsRow extends StatelessWidget {
   }) {
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        contentPadding: const EdgeInsets.only(top: 12),
-        scrollable: true,
-        content: RadioGroup<T>(
-          groupValue: selected,
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-            Navigator.of(ctx).pop();
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: choices
-                .map((c) => RadioListTile<T>(title: Text(labelOf(c)), value: c))
-                .toList(growable: false),
+      builder:
+          (ctx) => AlertDialog(
+            contentPadding: const EdgeInsets.only(top: 12),
+            scrollable: true,
+            content: RadioGroup<T>(
+              groupValue: selected,
+              onChanged: (v) {
+                if (v != null) onChanged(v);
+                Navigator.of(ctx).pop();
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: choices
+                    .map(
+                      (c) =>
+                          RadioListTile<T>(title: Text(labelOf(c)), value: c),
+                    )
+                    .toList(growable: false),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
     );
   }
 }
 
 class _PickerChip extends StatelessWidget {
-  const _PickerChip(
-      {required this.label, required this.value, required this.onTap});
+  const _PickerChip({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
 
   final String label;
   final String value;
@@ -317,9 +331,6 @@ class _PickerChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ActionChip(
-      label: Text('$label: $value'),
-      onPressed: onTap,
-    );
+    return ActionChip(label: Text('$label: $value'), onPressed: onTap);
   }
 }

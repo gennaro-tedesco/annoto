@@ -35,6 +35,10 @@ class LichessService {
     return _storage.read(key: _usernameKey);
   }
 
+  Future<String?> accessToken() {
+    return _storage.read(key: _tokenKey);
+  }
+
   Future<void> disconnect() async {
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _usernameKey);

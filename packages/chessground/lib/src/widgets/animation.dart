@@ -120,8 +120,10 @@ class AnimatedPieceTranslation extends StatefulWidget {
   final Curve curve;
 
   int get orientationFactor => orientation == Side.white ? 1 : -1;
-  double get dx => -(toSquare.file - fromSquare.file).toDouble() * orientationFactor;
-  double get dy => (toSquare.rank - fromSquare.rank).toDouble() * orientationFactor;
+  double get dx =>
+      -(toSquare.file - fromSquare.file).toDouble() * orientationFactor;
+  double get dy =>
+      (toSquare.rank - fromSquare.rank).toDouble() * orientationFactor;
 
   @override
   State<AnimatedPieceTranslation> createState() => _PieceTranslationState();
@@ -202,7 +204,8 @@ class AnimatedPieceFadeOut extends StatefulWidget {
   State<AnimatedPieceFadeOut> createState() => _PieceFadeOutState();
 }
 
-class _PieceFadeOutState extends State<AnimatedPieceFadeOut> with TickerProviderStateMixin {
+class _PieceFadeOutState extends State<AnimatedPieceFadeOut>
+    with TickerProviderStateMixin {
   late final AnimationController _controller =
       AnimationController(
           animationBehavior: AnimationBehavior.preserve,

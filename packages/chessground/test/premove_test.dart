@@ -13,13 +13,24 @@ void main() {
   });
 
   test('knight premoves', () {
-    expect(premovesOf(Square.b1, readFen(initialFen)), equals({Square.a3, Square.c3, Square.d2}));
+    expect(
+      premovesOf(Square.b1, readFen(initialFen)),
+      equals({Square.a3, Square.c3, Square.d2}),
+    );
   });
 
   test('bishop premoves', () {
     expect(
       premovesOf(Square.c1, readFen(initialFen)),
-      equals({Square.a3, Square.b2, Square.d2, Square.e3, Square.f4, Square.g5, Square.h6}),
+      equals({
+        Square.a3,
+        Square.b2,
+        Square.d2,
+        Square.e3,
+        Square.f4,
+        Square.g5,
+        Square.h6,
+      }),
     );
   });
 

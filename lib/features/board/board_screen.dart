@@ -10,8 +10,12 @@ import 'package:annoto/services/chess_engine_service.dart';
 import 'package:annoto/services/engine_service_scope.dart';
 import 'package:annoto/services/game_analysis_controller.dart';
 import 'package:annoto/services/game_phase_divider.dart';
+import 'package:annoto/services/lichess_service.dart';
 import 'package:annoto/services/notification_service.dart';
+import 'package:annoto/models/opening_explorer.dart';
+import 'package:annoto/services/opening_explorer_service.dart';
 import 'package:annoto/widgets/eval_graph.dart';
+import 'package:annoto/widgets/opening_explorer_panel.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
@@ -66,6 +70,7 @@ class _BoardScreenState extends State<BoardScreen> {
   static const double _selectorSidePadding = 8.0;
   static const double _chapterDrawerWidthFactor = 0.7;
   static const double _engineGaugeHeight = AppControlSize.compact * 0.6;
+  static const double _explorerBoardGap = 8.0;
   static const double _chapterDrawerMaxWidth = 320.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -84,12 +89,16 @@ class _BoardScreenState extends State<BoardScreen> {
   late ChessboardColorScheme _colorScheme;
   late PieceSet _pieceSet;
   bool _initialised = false;
-  final _currentRowKey = GlobalKey();
   final _moveScrollController = ScrollController();
   final _verticalMoveScrollController = ScrollController();
   late final ChessEngineService _engine;
   late final bool _ownsEngine;
   Timer? _debounce;
+  Timer? _explorerDebounce;
+  ExplorerResult? _explorerResult;
+  bool _explorerLoading = false;
+  String? _explorerError;
+  bool _openingExplorerVisible = true;
   bool _engineReady = false;
   bool _engineStarting = false;
   bool _engineEnabled = false;
@@ -169,6 +178,9 @@ class _BoardScreenState extends State<BoardScreen> {
         _buildMaps(_game.moves, PgnGame.startingPosition(_game.headers));
         _gameDivision = divideGame(_mainlineBoards());
       }
+      if (widget.engineMode) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _fetchExplorer());
+      }
       _colorScheme = _schemeByLabel(boardColorSchemeNotifier.value);
       _pieceSet = PieceSet.values.firstWhere(
         (s) => s.name == boardPieceSetNotifier.value,
@@ -229,6 +241,8 @@ class _BoardScreenState extends State<BoardScreen> {
     selectedEnginePackageNotifier.removeListener(_onEnginePackageChanged);
     _chapterSearchController.dispose();
     _debounce?.cancel();
+    _explorerDebounce?.cancel();
+    openingExplorerService.cancel();
     _analysisSub?.cancel();
     _moveScrollController.dispose();
     _verticalMoveScrollController.dispose();
@@ -446,21 +460,27 @@ class _BoardScreenState extends State<BoardScreen> {
       _promotionMove = null;
       _evaluations = [];
       _expandedPvs.clear();
+      if (widget.engineMode) {
+        _explorerResult = null;
+        _explorerLoading = true;
+        _explorerError = null;
+      }
     });
     if (_engineEnabled) {
       _debounce?.cancel();
       _engine.stopAnalysis();
       _debounce = Timer(const Duration(milliseconds: 200), _startAnalysis);
     }
+    if (widget.engineMode) {
+      openingExplorerService.cancel();
+      _explorerDebounce?.cancel();
+      _explorerDebounce = Timer(
+        const Duration(milliseconds: 300),
+        _fetchExplorer,
+      );
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_currentRowKey.currentContext != null) {
-        Scrollable.ensureVisible(
-          _currentRowKey.currentContext!,
-          alignment: 0.5,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      } else if (_moveScrollController.hasClients) {
+      if (_moveScrollController.hasClients) {
         _moveScrollController.animateTo(
           0,
           duration: const Duration(milliseconds: 200),
@@ -596,6 +616,50 @@ class _BoardScreenState extends State<BoardScreen> {
         NotificationService.showError('Engine analysis failed: $error');
       }
     }
+  }
+
+  String _currentUciMoves() =>
+      _path.map((node) => _moveMap[node]!.uci).join(',');
+
+  Future<void> _fetchExplorer() async {
+    if (!mounted) return;
+    setState(() {
+      _explorerLoading = true;
+      _explorerError = null;
+    });
+    final token = await lichessService.accessToken();
+    if (!mounted) return;
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _explorerResult = null;
+        _explorerError = 'Connect Lichess to use opening explorer';
+        _explorerLoading = false;
+      });
+      return;
+    }
+    final uciMoves = _currentUciMoves();
+    ExplorerResult? result;
+    try {
+      result = await openingExplorerService.queryByPlay(
+        uciMoves,
+        accessToken: token,
+      );
+    } catch (_) {
+      result = null;
+    }
+    if (!mounted) return;
+    if (uciMoves != _currentUciMoves()) return;
+    setState(() {
+      _explorerResult = result;
+      _explorerError = result == null ? 'Opening explorer unavailable' : null;
+      _explorerLoading = false;
+    });
+  }
+
+  void _onExplorerMoveTap(ExplorerMove explorerMove) {
+    final move = Move.parse(explorerMove.uci);
+    if (move == null || !_currentPosition.isLegal(move)) return;
+    _commitMove(move);
   }
 
   List<(int, bool, String)> _pvToSan(List<String> pv) {
@@ -852,6 +916,48 @@ class _BoardScreenState extends State<BoardScreen> {
     );
   }
 
+  Widget _buildExplorerPanel(ThemeData theme) {
+    final panelColor = theme.scaffoldBackgroundColor;
+    if (_explorerLoading && _explorerResult == null) {
+      return ColoredBox(
+        color: panelColor,
+        child: const Center(
+          child: SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 1.5),
+          ),
+        ),
+      );
+    }
+    final result = _explorerResult;
+    if (_explorerError != null) {
+      return ColoredBox(
+        color: panelColor,
+        child: Center(
+          child: Text(
+            _explorerError!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+    if (result == null || result.moves.isEmpty) return const SizedBox.expand();
+    return ColoredBox(
+      color: panelColor,
+      child: Scrollbar(
+        child: SingleChildScrollView(
+          child: OpeningExplorerPanel(
+            result: result,
+            onMoveTap: _onExplorerMoveTap,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEvalPanel(ThemeData theme) {
     final panelColor = Color.alphaBlend(
       theme.colorScheme.outline.withValues(alpha: _panelOutlineAlpha),
@@ -960,20 +1066,7 @@ class _BoardScreenState extends State<BoardScreen> {
                           (e) => e != null,
                         ) ??
                         false))
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Expanded(child: _buildMoveList(theme)),
-                        SizedBox(
-                          height: 1,
-                          child: ColoredBox(
-                            color: theme.colorScheme.outlineVariant,
-                          ),
-                        ),
-                        Expanded(child: _buildAnalysisGraphPanel(theme)),
-                      ],
-                    ),
-                  )
+                  Expanded(child: _buildAnalysisGraphPanel(theme))
                 else
                   Expanded(child: _buildMoveList(theme)),
               ],
@@ -1186,20 +1279,7 @@ class _BoardScreenState extends State<BoardScreen> {
                         (e) => e != null,
                       ) ??
                       false))
-                Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(child: _buildMoveList(theme)),
-                      SizedBox(
-                        height: 1,
-                        child: ColoredBox(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                      ),
-                      Expanded(child: _buildAnalysisGraphPanel(theme)),
-                    ],
-                  ),
-                )
+                Expanded(child: _buildAnalysisGraphPanel(theme))
               else
                 Expanded(child: _buildMoveList(theme)),
             ],
@@ -1215,51 +1295,74 @@ class _BoardScreenState extends State<BoardScreen> {
         boardSize +
         _boardSelectorsGap +
         AppControlSize.compact +
-        (_engineEnabled ? _selectorGap + _engineGaugeHeight : 0);
-    final boardTop = ((constraints.maxHeight - boardBlockHeight) / 2).clamp(
-      0.0,
-      double.infinity,
-    );
-    final boardBottom = boardTop + boardBlockHeight;
+        _selectorGap +
+        _engineGaugeHeight;
 
-    return SizedBox.expand(
-      child: Stack(
-        children: [
-          Positioned(
-            top: boardTop,
-            left: 0,
-            right: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildBoardArea(constraints.maxWidth, boardSize),
-                const SizedBox(height: _boardSelectorsGap),
-                _buildSelectors(theme, constraints.maxWidth),
-                if (_engineEnabled) ...[
-                  const SizedBox(height: _selectorGap),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: _selectorSidePadding,
+    return Column(
+      children: [
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, inner) {
+              final boardTop = ((inner.maxHeight - boardBlockHeight) / 2).clamp(
+                0.0,
+                double.infinity,
+              );
+              final explorerHeight = (boardTop - _explorerBoardGap).clamp(
+                0.0,
+                double.infinity,
+              );
+              final boardBottom = boardTop + boardBlockHeight;
+              return SizedBox.expand(
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: boardTop,
+                      left: 0,
+                      right: 0,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildBoardArea(constraints.maxWidth, boardSize),
+                          const SizedBox(height: _boardSelectorsGap),
+                          _buildSelectors(theme, constraints.maxWidth),
+                          const SizedBox(height: _selectorGap),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: _selectorSidePadding,
+                            ),
+                            child: SizedBox(
+                              height: _engineGaugeHeight,
+                              child: _engineEnabled
+                                  ? _buildEvalGauge(theme)
+                                  : const SizedBox.shrink(),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: SizedBox(
-                      height: _engineGaugeHeight,
-                      child: _buildEvalGauge(theme),
-                    ),
-                  ),
-                ],
-              ],
-            ),
+                    if (_openingExplorerVisible && explorerHeight > 0)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: explorerHeight,
+                        child: _buildExplorerPanel(theme),
+                      ),
+                    if (_engineEnabled && boardBottom < inner.maxHeight)
+                      Positioned(
+                        top: boardBottom,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: _buildEvalPanel(theme),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
-          if (_engineEnabled && boardBottom < constraints.maxHeight)
-            Positioned(
-              top: boardBottom,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: _buildEvalPanel(theme),
-            ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1268,11 +1371,14 @@ class _BoardScreenState extends State<BoardScreen> {
     BoxConstraints constraints,
   ) {
     final halfWidth = constraints.maxWidth / 2;
-    const columnOverhead = _boardSelectorsGap + AppControlSize.compact;
+    const columnOverhead =
+        _boardSelectorsGap +
+        AppControlSize.compact +
+        _selectorGap +
+        _engineGaugeHeight;
     final boardSize =
         ((constraints.maxHeight - columnOverhead) * _engineBoardWidthFactor)
             .clamp(0.0, halfWidth - _selectorSidePadding * 2);
-    final hasMoves = _game.moves.children.isNotEmpty;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1285,18 +1391,18 @@ class _BoardScreenState extends State<BoardScreen> {
               _buildBoardArea(halfWidth, boardSize),
               const SizedBox(height: _boardSelectorsGap),
               _buildSelectors(theme, halfWidth),
-              if (_engineEnabled) ...[
-                const SizedBox(height: _selectorGap),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: _selectorSidePadding,
-                  ),
-                  child: SizedBox(
-                    height: _engineGaugeHeight,
-                    child: _buildEvalGauge(theme),
-                  ),
+              const SizedBox(height: _selectorGap),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _selectorSidePadding,
                 ),
-              ],
+                child: SizedBox(
+                  height: _engineGaugeHeight,
+                  child: _engineEnabled
+                      ? _buildEvalGauge(theme)
+                      : const SizedBox.shrink(),
+                ),
+              ),
             ],
           ),
         ),
@@ -1307,13 +1413,17 @@ class _BoardScreenState extends State<BoardScreen> {
         Expanded(
           child: Column(
             children: [
-              if (_engineEnabled) Expanded(child: _buildEvalPanel(theme)),
-              if (hasMoves && _engineEnabled)
+              if (_engineEnabled && _openingExplorerVisible) ...[
+                Expanded(child: _buildEvalPanel(theme)),
                 SizedBox(
                   height: 1,
                   child: ColoredBox(color: theme.colorScheme.outlineVariant),
                 ),
-              if (hasMoves) Expanded(child: _buildMoveList(theme)),
+                Expanded(child: _buildExplorerPanel(theme)),
+              ] else if (_engineEnabled)
+                Expanded(child: _buildEvalPanel(theme))
+              else if (_openingExplorerVisible)
+                Expanded(child: _buildExplorerPanel(theme)),
             ],
           ),
         ),
@@ -1327,11 +1437,7 @@ class _BoardScreenState extends State<BoardScreen> {
       return (v == null || v.isEmpty || v.startsWith('?')) ? null : v;
     }
 
-    final white = tag('White');
-    final black = tag('Black');
     final result = tag('Result');
-    final event = tag('Event');
-    final round = tag('Round');
     final players = _boardTitle(_game.headers);
     final tournament = _boardSubtitle(_game.headers);
 
@@ -1477,7 +1583,10 @@ class _BoardScreenState extends State<BoardScreen> {
       width: buttonSize,
       height: buttonSize,
     );
-    const sideSlotWidth = buttonSize * 4 + _selectorGap * 3;
+    const boardControlsWidth = buttonSize * 3 + _selectorGap * 2;
+    final engineControlsWidth = widget.engineMode
+        ? buttonSize * 5 + _selectorGap * 4
+        : buttonSize * 4 + _selectorGap * 3;
 
     Widget wrapCompactControl(Widget child) {
       return SizedBox(width: buttonSize, height: buttonSize, child: child);
@@ -1586,6 +1695,26 @@ class _BoardScreenState extends State<BoardScreen> {
       ),
     );
 
+    final explorerBtn = wrapCompactControl(
+      IconButton(
+        iconSize: primaryIconSize,
+        constraints: buttonConstraints,
+        padding: EdgeInsets.zero,
+        style: IconButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          foregroundColor: _openingExplorerVisible
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurface,
+        ),
+        icon: const Icon(LucideIcons.book_open),
+        tooltip: _openingExplorerVisible
+            ? 'Hide opening explorer'
+            : 'Show opening explorer',
+        onPressed: () =>
+            setState(() => _openingExplorerVisible = !_openingExplorerVisible),
+      ),
+    );
+
     final analysisProgress = _gameAnalysis?.progress.value;
     final analysisStatus = analysisProgress?.status ?? GameAnalysisStatus.idle;
     final analysisHasResults =
@@ -1683,6 +1812,10 @@ class _BoardScreenState extends State<BoardScreen> {
           analysisBtn,
           const SizedBox(width: _selectorGap),
         ],
+        if (widget.engineMode) ...[
+          explorerBtn,
+          const SizedBox(width: _selectorGap),
+        ],
         cpuBtn,
         const SizedBox(width: _selectorGap),
         incrementBtn,
@@ -1703,7 +1836,7 @@ class _BoardScreenState extends State<BoardScreen> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: SizedBox(
-                    width: sideSlotWidth,
+                    width: boardControlsWidth,
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: boardControlsGroup,
@@ -1713,7 +1846,7 @@ class _BoardScreenState extends State<BoardScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: SizedBox(
-                    width: sideSlotWidth,
+                    width: engineControlsWidth,
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: engineControlsGroup,
@@ -1800,7 +1933,6 @@ class _BoardScreenState extends State<BoardScreen> {
               vNode.data.san,
               isVActive,
               () => _navigate(_pathTo(vNode)),
-              key: isVActive ? _currentRowKey : null,
             ),
           );
           tokens.addAll(_commentTokens(theme, vNode.data.comments));
@@ -1848,7 +1980,6 @@ class _BoardScreenState extends State<BoardScreen> {
             mainChild.data.san,
             isMainActive,
             () => _navigate(_pathTo(mainChild)),
-            key: isMainActive ? _currentRowKey : null,
           ),
         );
         tokens.addAll(_commentTokens(theme, mainChild.data.comments));
@@ -1862,7 +1993,7 @@ class _BoardScreenState extends State<BoardScreen> {
       }
 
       return ColoredBox(
-        color: movesPanelColor ?? theme.colorScheme.background,
+        color: movesPanelColor,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1918,7 +2049,7 @@ class _BoardScreenState extends State<BoardScreen> {
     }
 
     return ColoredBox(
-      color: movesPanelColor ?? theme.colorScheme.background,
+      color: movesPanelColor,
       child: ListView(
         controller: _verticalMoveScrollController,
         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1973,11 +2104,9 @@ class _BoardScreenState extends State<BoardScreen> {
     final bPly = rowIndex * 2 + 1;
     final wNode = wPly < mainLine.length ? mainLine[wPly] : null;
     final bNode = bPly < mainLine.length ? mainLine[bPly] : null;
-    final isCurrentRow =
-        _onMainLine && _path.isNotEmpty && rowIndex == (_path.length - 1) ~/ 2;
 
     return _buildMoveRow(
-      key: isCurrentRow ? _currentRowKey : ValueKey('m$rowIndex'),
+      key: ValueKey('m$rowIndex'),
       theme: theme,
       moveNumber: rowIndex + 1,
       whiteSan: wNode?.data.san,
@@ -2101,9 +2230,6 @@ class _BoardScreenState extends State<BoardScreen> {
     }
 
     return Padding(
-      key: _path.isNotEmpty && nodes.contains(_path.last)
-          ? _currentRowKey
-          : null,
       padding: EdgeInsets.fromLTRB(8.0 + depth * 20, 3, 8, 3),
       child: Wrap(
         crossAxisAlignment: WrapCrossAlignment.center,

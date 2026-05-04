@@ -36,49 +36,53 @@ class _BoardEditorPageState extends State<BoardEditorPage> {
       pieces: pieces,
       settings: settings,
       pointerMode: pointerMode,
-      onEditedSquare: (squareId) => setState(() {
-        if (pieceToAddOnTouch != null) {
-          pieces[squareId] = pieceToAddOnTouch!;
-        } else {
-          pieces.remove(squareId);
-        }
-      }),
-      onDiscardedPiece: (squareId) => setState(() {
-        pieces.remove(squareId);
-      }),
-      onDroppedPiece: (origin, destination, piece) => setState(() {
-        pieces[destination] = piece;
-        if (origin != null && origin != destination) {
-          pieces.remove(origin);
-        }
-      }),
+      onEditedSquare:
+          (squareId) => setState(() {
+            if (pieceToAddOnTouch != null) {
+              pieces[squareId] = pieceToAddOnTouch!;
+            } else {
+              pieces.remove(squareId);
+            }
+          }),
+      onDiscardedPiece:
+          (squareId) => setState(() {
+            pieces.remove(squareId);
+          }),
+      onDroppedPiece:
+          (origin, destination, piece) => setState(() {
+            pieces[destination] = piece;
+            if (origin != null && origin != destination) {
+              pieces.remove(origin);
+            }
+          }),
     );
 
     makePieceMenu(side) => PieceMenu(
-          side: side,
-          pieceSet: pieceSet,
-          squareSize: boardEditor.squareSize,
-          settings: settings,
-          pieceEdition:
-              pointerMode == EditorPointerMode.edit ? pieceToAddOnTouch : null,
-          pieceTapped: (role) => setState(() {
+      side: side,
+      pieceSet: pieceSet,
+      squareSize: boardEditor.squareSize,
+      settings: settings,
+      pieceEdition:
+          pointerMode == EditorPointerMode.edit ? pieceToAddOnTouch : null,
+      pieceTapped:
+          (role) => setState(() {
             pieceToAddOnTouch = Piece(role: role, color: side);
             pointerMode = EditorPointerMode.edit;
           }),
-          pointerMode: pointerMode,
-          deleteTapped: () => setState(() {
+      pointerMode: pointerMode,
+      deleteTapped:
+          () => setState(() {
             pieceToAddOnTouch = null;
             pointerMode = EditorPointerMode.edit;
           }),
-          pointerModeTapped: () => setState(() {
+      pointerModeTapped:
+          () => setState(() {
             pointerMode = EditorPointerMode.drag;
           }),
-        );
+    );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Board Editor'),
-      ),
+      appBar: AppBar(title: const Text('Board Editor')),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -88,8 +92,10 @@ class _BoardEditorPageState extends State<BoardEditorPage> {
             makePieceMenu(Side.white),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child:
-                  SizedBox(height: 50, child: Text('FEN: ${writeFen(pieces)}')),
+              child: SizedBox(
+                height: 50,
+                child: Text('FEN: ${writeFen(pieces)}'),
+              ),
             ),
           ],
         ),
@@ -135,53 +141,48 @@ class PieceMenu extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            color: pointerMode == EditorPointerMode.drag
-                ? Colors.green
-                : Colors.transparent,
+            color:
+                pointerMode == EditorPointerMode.drag
+                    ? Colors.green
+                    : Colors.transparent,
             child: GestureDetector(
               onTap: () => pointerModeTapped(),
-              child: Icon(
-                Icons.pan_tool_alt_outlined,
-                size: squareSize,
-              ),
+              child: Icon(Icons.pan_tool_alt_outlined, size: squareSize),
             ),
           ),
-          ...Role.values.mapIndexed(
-            (i, role) {
-              final piece = Piece(role: role, color: side);
-              final pieceWidget = PieceWidget(
-                piece: piece,
-                size: squareSize,
-                pieceAssets: pieceSet.assets,
-              );
+          ...Role.values.mapIndexed((i, role) {
+            final piece = Piece(role: role, color: side);
+            final pieceWidget = PieceWidget(
+              piece: piece,
+              size: squareSize,
+              pieceAssets: pieceSet.assets,
+            );
 
-              return Container(
-                color: pieceEdition == piece ? Colors.blue : Colors.transparent,
-                child: GestureDetector(
-                  onTap: () => pieceTapped(role),
-                  child: Draggable(
-                      data: piece,
-                      feedback: PieceDragFeedback(
-                        scale: settings.dragFeedbackScale,
-                        squareSize: squareSize,
-                        piece: piece,
-                        pieceAssets: pieceSet.assets,
-                      ),
-                      child: pieceWidget),
+            return Container(
+              color: pieceEdition == piece ? Colors.blue : Colors.transparent,
+              child: GestureDetector(
+                onTap: () => pieceTapped(role),
+                child: Draggable(
+                  data: piece,
+                  feedback: PieceDragFeedback(
+                    scale: settings.dragFeedbackScale,
+                    squareSize: squareSize,
+                    piece: piece,
+                    pieceAssets: pieceSet.assets,
+                  ),
+                  child: pieceWidget,
                 ),
-              );
-            },
-          ).toList(),
+              ),
+            );
+          }).toList(),
           Container(
-            color: pointerMode == EditorPointerMode.edit && pieceEdition == null
-                ? Colors.red
-                : Colors.transparent,
+            color:
+                pointerMode == EditorPointerMode.edit && pieceEdition == null
+                    ? Colors.red
+                    : Colors.transparent,
             child: GestureDetector(
               onTap: () => deleteTapped(),
-              child: Icon(
-                Icons.delete_outline,
-                size: squareSize,
-              ),
+              child: Icon(Icons.delete_outline, size: squareSize),
             ),
           ),
         ],

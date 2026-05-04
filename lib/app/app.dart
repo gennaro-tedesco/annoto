@@ -5,7 +5,6 @@ import 'package:annoto/app/app_tab_shell.dart';
 import 'package:annoto/features/account/account_screen.dart';
 import 'package:annoto/features/board/board_screen.dart';
 import 'package:annoto/features/game_detail/game_detail_screen.dart';
-import 'package:annoto/features/home/home_screen.dart';
 import 'package:annoto/features/provider/provider_screen.dart';
 import 'package:annoto/features/review/review_screen.dart';
 import 'package:annoto/services/chess_engine_service.dart';

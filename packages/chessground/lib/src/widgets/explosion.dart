@@ -31,19 +31,21 @@ class ExplosionWidget extends StatefulWidget {
   State<ExplosionWidget> createState() => _ExplosionWidgetState();
 }
 
-class _ExplosionWidgetState extends State<ExplosionWidget> with SingleTickerProviderStateMixin {
+class _ExplosionWidgetState extends State<ExplosionWidget>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.duration)
-      ..addStatusListener((status) {
-        if (status == AnimationStatus.completed) {
-          widget.onComplete();
-        }
-      })
-      ..forward();
+    _controller =
+        AnimationController(vsync: this, duration: widget.duration)
+          ..addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              widget.onComplete();
+            }
+          })
+          ..forward();
   }
 
   @override

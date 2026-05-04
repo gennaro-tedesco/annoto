@@ -43,7 +43,10 @@ void main() {
     for (var i = 0; i < images.length; i++) {
       _cache.add(AssetImage(i.toString()), images[i]);
     }
-    expect(images.map((image) => image.disposedCount).fold(0, (prev, v) => prev + v), 0);
+    expect(
+      images.map((image) => image.disposedCount).fold(0, (prev, v) => prev + v),
+      0,
+    );
     _cache.clear();
     expect(
       images.map((image) => image.disposedCount).fold(0, (prev, v) => prev + v),
@@ -71,7 +74,9 @@ void main() {
       final key = AssetImage(i.toString());
       _cache.add(key, images[i]);
     }
-    expect(_cache.keys.toSet(), {for (var i = 0; i < images.length; i++) AssetImage(i.toString())});
+    expect(_cache.keys.toSet(), {
+      for (var i = 0; i < images.length; i++) AssetImage(i.toString()),
+    });
   });
 
   test('.ready()', () async {
