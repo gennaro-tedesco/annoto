@@ -1,58 +1,6 @@
 # AGENTS.md
 
-## Prime Directive
-
-You are a **code executor**, not a creative director. Your role is to implement instructions with surgical precision. You do not interpret, extrapolate, improvise, or apply judgment about what the user "probably meant."
-
-______________________________________________________________________
-
-## Project
-
-This project is a Flutter application for Android.
-
-It is an app that lets users upload or take a screenshot of a chess scoresheet and generate a pgn file representing a valid chess game.
-
-The codebase must be designed, implemented, and maintained so that the app:
-
-- builds on Android
-- avoids platform-specific logic unless strictly necessary
-- keeps shared business logic in common Flutter/Dart code
-
-## Product scope
-
-The app should support, at minimum:
-
-- uploading a scoresheet (either via taking a screenshot or via file upload)
-- generate a pgn file extracting the text from the image
-- allow users to review the moves before saving the extraction as valid pgn
-- validate the resulting pgn file
-- collect list of games already uploaded
-
-Future features may be added, but the base project should remain simple, clear, and maintainable.
-
-## Technical requirements
-
-- Use **Flutter** as the application framework
-- Use **Dart** for the application code
-- Prefer native platform integrations only when there is no suitable cross-platform Flutter solution
-- Always use variables when introducing new values, never hardcode values in the code
-- Keep the project runnable on macOS development environments targeting Android emulators
-- After every code change run `dart format .`
-
 ## Codebase expectations
-
-- Shared UI and logic should live in common Flutter code
-
-## UX expectations
-
-The app should be:
-
-- minimal
-- fast
-- easy to use
-- touch-friendly
-
-UI should work well on typical phone screens
 
 ## Quality requirements
 
@@ -77,6 +25,7 @@ A task is complete only if:
 - the diff is minimal and focused
 - the task fulfills explicitly every single point in the requirements list that was given
 - no additional changes outside the requirements have been made
+- you have explicitly validated that the current UX and features have not changed unless explicitly requested. New code must never change current UX behaviour nor features.
 
 ## Core Rules
 
@@ -85,6 +34,7 @@ A task is complete only if:
 - Implement **exactly** what is asked. Nothing more, nothing less.
 - Do not add unrequested features, styles, animations, restructuring, or "improvements."
 - Do not apply your own aesthetic or architectural preferences.
+- Do not change current UI and introduce spurious elements unless explicitly asked to do so.
 - If an instruction seems suboptimal to you, **do not silently correct it**. Flag it first, then wait.
 
 ### 2. Ask Before Acting

@@ -8,9 +8,7 @@ class BoardThumbnailsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Board Thumbnails'),
-      ),
+      appBar: AppBar(title: const Text('Board Thumbnails')),
       body: GridView.builder(
         padding: const EdgeInsets.all(20),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -20,16 +18,18 @@ class BoardThumbnailsPage extends StatelessWidget {
         ),
         itemCount: positions.length,
         itemBuilder: (context, index) {
-          return LayoutBuilder(builder: (context, constraints) {
-            return StaticChessboard(
-              size: constraints.biggest.width,
-              enableCoordinates: false,
-              borderRadius: BorderRadius.circular(5),
-              orientation: Side.white,
-              fen: positions[index],
-              colorScheme: ChessboardColorScheme.brown,
-            );
-          });
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              return StaticChessboard(
+                size: constraints.biggest.width,
+                enableCoordinates: false,
+                borderRadius: BorderRadius.circular(5),
+                orientation: Side.white,
+                fen: positions[index],
+                colorScheme: ChessboardColorScheme.brown,
+              );
+            },
+          );
         },
       ),
     );

@@ -269,9 +269,12 @@ class ChessboardSettings {
       dragFeedbackScale: dragFeedbackScale ?? this.dragFeedbackScale,
       dragFeedbackOffset: dragFeedbackOffset ?? this.dragFeedbackOffset,
       dragTargetKind: dragTargetKind ?? this.dragTargetKind,
-      pieceOrientationBehavior: pieceOrientationBehavior ?? this.pieceOrientationBehavior,
-      enablePremoveCastling: enablePremoveCastling ?? this.enablePremoveCastling,
-      autoQueenPromotionOnPremove: autoQueenPromotionOnPremove ?? this.autoQueenPromotionOnPremove,
+      pieceOrientationBehavior:
+          pieceOrientationBehavior ?? this.pieceOrientationBehavior,
+      enablePremoveCastling:
+          enablePremoveCastling ?? this.enablePremoveCastling,
+      autoQueenPromotionOnPremove:
+          autoQueenPromotionOnPremove ?? this.autoQueenPromotionOnPremove,
       autoQueenPromotion: autoQueenPromotion ?? this.autoQueenPromotion,
       pieceShiftMethod: pieceShiftMethod ?? this.pieceShiftMethod,
       drawShape: drawShape ?? this.drawShape,

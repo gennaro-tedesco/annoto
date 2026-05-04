@@ -53,7 +53,12 @@ class PieceWidget extends StatelessWidget {
               height: size,
               opacity: opacity,
             )
-            : Image(image: imageProvider, width: size, height: size, opacity: opacity);
+            : Image(
+              image: imageProvider,
+              width: size,
+              height: size,
+              opacity: opacity,
+            );
 
     return upsideDown ? Transform.flip(flipY: true, child: image) : image;
   }

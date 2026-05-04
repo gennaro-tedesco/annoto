@@ -14,10 +14,7 @@ class GameDivision {
 
 enum GamePhase { opening, middlegame, endgame }
 
-GamePhase phaseForPly({
-  required int ply,
-  required GameDivision division,
-}) {
+GamePhase phaseForPly({required int ply, required GameDivision division}) {
   if (division.end != null && ply >= division.end!) {
     return GamePhase.endgame;
   }
@@ -31,12 +28,8 @@ GamePhase phaseForPly({
 
 GameDivision divideGame(List<Board> boards) {
   int? middle;
-  const minimumOpeningPlies = 6;
-  final firstMiddlegameCandidate = minimumOpeningPlies > boards.length
-      ? boards.length
-      : minimumOpeningPlies;
 
-  for (var i = firstMiddlegameCandidate; i < boards.length; i++) {
+  for (var i = 0; i < boards.length; i++) {
     final board = boards[i];
 
     if (majorsAndMinors(board) <= 10 ||
@@ -50,7 +43,7 @@ GameDivision divideGame(List<Board> boards) {
   int? end;
 
   if (middle != null) {
-    for (var i = middle; i < boards.length; i++) {
+    for (var i = 0; i < boards.length; i++) {
       final board = boards[i];
 
       if (majorsAndMinors(board) <= 6) {
@@ -60,7 +53,11 @@ GameDivision divideGame(List<Board> boards) {
     }
   }
 
-  return GameDivision(middle: middle, end: end, plies: boards.length);
+  final validMiddle = middle != null && (end == null || middle < end)
+      ? middle
+      : null;
+
+  return GameDivision(middle: validMiddle, end: end, plies: boards.length);
 }
 
 int majorsAndMinors(Board board) {
@@ -75,32 +72,52 @@ bool backrankSparse(Board board) {
 }
 
 int mixedness(Board board) {
-  var score = 0;
+  var total = 0;
 
-  final whiteSquares = board.white.squares.toList();
-  final blackSquares = board.black.squares.toList();
+  for (var rank = 0; rank <= 6; rank++) {
+    for (var file = 0; file <= 6; file++) {
+      var whiteCount = 0;
+      var blackCount = 0;
 
-  for (final white in whiteSquares) {
-    for (final black in blackSquares) {
-      final distance = chebyshevDistance(white, black);
-
-      if (distance == 1) {
-        score += 16;
-      } else if (distance == 2) {
-        score += 8;
-      } else if (distance == 3) {
-        score += 4;
-      } else if (distance == 4) {
-        score += 2;
+      for (var dr = 0; dr <= 1; dr++) {
+        for (var df = 0; df <= 1; df++) {
+          final sq = Square(file + df + (rank + dr) * 8);
+          if (board.white.has(sq)) {
+            whiteCount++;
+          } else if (board.black.has(sq)) {
+            blackCount++;
+          }
+        }
       }
+
+      total += _mixednessScore(rank + 1, whiteCount, blackCount);
     }
   }
 
-  return score;
+  return total;
 }
 
-int chebyshevDistance(Square a, Square b) {
-  final fileDistance = (a.file - b.file).abs();
-  final rankDistance = (a.rank - b.rank).abs();
-  return fileDistance > rankDistance ? fileDistance : rankDistance;
+int _mixednessScore(int y, int white, int black) {
+  if (white == 0 && black == 0) return 0;
+
+  if (white == 1 && black == 0) return 1 + (8 - y);
+  if (white == 2 && black == 0) return y > 2 ? 2 + (y - 2) : 0;
+  if (white == 3 && black == 0) return y > 1 ? 3 + (y - 1) : 0;
+  if (white == 4 && black == 0) return y > 1 ? 3 + (y - 1) : 0;
+
+  if (white == 0 && black == 1) return 1 + y;
+  if (white == 1 && black == 1) return 5 + (4 - y).abs();
+  if (white == 2 && black == 1) return 4 + (y - 1);
+  if (white == 3 && black == 1) return 5 + (y - 1);
+
+  if (white == 0 && black == 2) return y < 6 ? 2 + (6 - y) : 0;
+  if (white == 1 && black == 2) return 4 + (7 - y);
+  if (white == 2 && black == 2) return 7;
+
+  if (white == 0 && black == 3) return y < 7 ? 3 + (7 - y) : 0;
+  if (white == 1 && black == 3) return 5 + (7 - y);
+
+  if (white == 0 && black == 4) return y < 7 ? 3 + (7 - y) : 0;
+
+  return 0;
 }
