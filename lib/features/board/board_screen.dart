@@ -72,6 +72,7 @@ class _BoardScreenState extends State<BoardScreen> {
   static const double _engineGaugeHeight = AppControlSize.compact * 0.6;
   static const double _explorerBoardGap = 8.0;
   static const double _chapterDrawerMaxWidth = 320.0;
+  static const double _bottomNavBarVerticalPadding = 12.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _chapterSearchController =
@@ -1076,7 +1077,7 @@ class _BoardScreenState extends State<BoardScreen> {
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: _bottomNavBarVerticalPadding),
           child: Row(
             children: [
               IconButton.filled(
@@ -1303,9 +1304,14 @@ class _BoardScreenState extends State<BoardScreen> {
         Expanded(
           child: LayoutBuilder(
             builder: (context, inner) {
-              final boardTop = ((inner.maxHeight - boardBlockHeight) / 2).clamp(
+              final viewPadding = MediaQuery.viewPaddingOf(context);
+              final bottomNavBarHeight = viewPadding.bottom +
+                  kMinInteractiveDimension +
+                  _bottomNavBarVerticalPadding * 2;
+              final screenCenterOffset = (bottomNavBarHeight - viewPadding.top) / 2;
+              final boardTop = ((inner.maxHeight - boardBlockHeight) / 2 + screenCenterOffset).clamp(
                 0.0,
-                double.infinity,
+                (inner.maxHeight - boardBlockHeight).toDouble(),
               );
               final explorerHeight = (boardTop - _explorerBoardGap).clamp(
                 0.0,
