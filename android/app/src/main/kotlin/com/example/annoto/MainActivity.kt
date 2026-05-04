@@ -15,6 +15,7 @@ class MainActivity : FlutterActivity() {
     private val updateChannel = "com.example.annoto/update"
     private val oexMethodChannel = "app/oex_engine"
     private val oexEventChannel = "app/oex_engine_output"
+    private val foregroundServiceChannel = "app/foreground_service"
 
     private val oexBridge by lazy { OexEngineBridge(this) }
 
@@ -94,6 +95,31 @@ class MainActivity : FlutterActivity() {
                     }
                     "stop" -> {
                         oexBridge.stop()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, foregroundServiceChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        val intent = Intent(this, AnalysisForegroundService::class.java).apply {
+                            action = AnalysisForegroundService.ACTION_START
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success(null)
+                    }
+                    "stop" -> {
+                        val intent = Intent(this, AnalysisForegroundService::class.java).apply {
+                            action = AnalysisForegroundService.ACTION_STOP
+                        }
+                        startService(intent)
                         result.success(null)
                     }
                     else -> result.notImplemented()

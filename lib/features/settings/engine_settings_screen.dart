@@ -120,6 +120,7 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
         engineHashNotifier,
         selectedEnginePackageNotifier,
         analysisDepthNotifier,
+        keepAnalysisAliveNotifier,
       ]),
       builder: (context, child) {
         final theme = Theme.of(context);
@@ -203,6 +204,21 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
                       ),
                     ],
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: SwitchListTile(
+                  title: Text(
+                    'Keep analysis alive',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  subtitle: Text(
+                    'Shows a notification while analysing to prevent the OS from interrupting the engine when the screen turns off',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  value: keepAnalysisAliveNotifier.value,
+                  onChanged: (v) => keepAnalysisAliveNotifier.value = v,
                 ),
               ),
               const SizedBox(height: 16),

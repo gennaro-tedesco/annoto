@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/app/themes.dart';
+import 'package:annoto/services/analysis_foreground_service.dart';
 import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/features/settings/engine_settings_screen.dart';
@@ -109,6 +110,7 @@ class _BoardScreenState extends State<BoardScreen> {
   final _expandedPvs = <int>{};
   GameAnalysisController? _gameAnalysis;
   bool _showAnalysisGraph = false;
+  bool _analysisForegroundServiceActive = false;
   GameDivision _gameDivision = const GameDivision(
     middle: null,
     end: null,
@@ -234,7 +236,24 @@ class _BoardScreenState extends State<BoardScreen> {
         'Analysis error: ${progress!.errorMessage}',
       );
     }
+    final isRunning = progress?.status == GameAnalysisStatus.running;
+    if (keepAnalysisAliveNotifier.value) {
+      if (isRunning && !_analysisForegroundServiceActive) {
+        _analysisForegroundServiceActive = true;
+        unawaited(AnalysisForegroundService.start());
+      } else if (!isRunning && _analysisForegroundServiceActive) {
+        _analysisForegroundServiceActive = false;
+        unawaited(AnalysisForegroundService.stop());
+      }
+    }
     setState(() {});
+  }
+
+  void _stopForegroundServiceIfActive() {
+    if (_analysisForegroundServiceActive) {
+      _analysisForegroundServiceActive = false;
+      unawaited(AnalysisForegroundService.stop());
+    }
   }
 
   @override
@@ -251,6 +270,7 @@ class _BoardScreenState extends State<BoardScreen> {
     if (_ownsEngine) _engine.dispose();
     _gameAnalysis?.progress.removeListener(_onAnalysisProgressChanged);
     _gameAnalysis?.dispose();
+    _stopForegroundServiceIfActive();
     super.dispose();
   }
 
@@ -305,6 +325,7 @@ class _BoardScreenState extends State<BoardScreen> {
     _engine.stopAnalysis();
     _gameAnalysis?.progress.removeListener(_onAnalysisProgressChanged);
     _gameAnalysis?.dispose();
+    _stopForegroundServiceIfActive();
     _gameAnalysis = null;
     _positionMap.clear();
     _moveMap.clear();
@@ -1077,7 +1098,10 @@ class _BoardScreenState extends State<BoardScreen> {
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: _bottomNavBarVerticalPadding),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: _bottomNavBarVerticalPadding,
+          ),
           child: Row(
             children: [
               IconButton.filled(
@@ -1305,14 +1329,19 @@ class _BoardScreenState extends State<BoardScreen> {
           child: LayoutBuilder(
             builder: (context, inner) {
               final viewPadding = MediaQuery.viewPaddingOf(context);
-              final bottomNavBarHeight = viewPadding.bottom +
+              final bottomNavBarHeight =
+                  viewPadding.bottom +
                   kMinInteractiveDimension +
                   _bottomNavBarVerticalPadding * 2;
-              final screenCenterOffset = (bottomNavBarHeight - viewPadding.top) / 2;
-              final boardTop = ((inner.maxHeight - boardBlockHeight) / 2 + screenCenterOffset).clamp(
-                0.0,
-                (inner.maxHeight - boardBlockHeight).toDouble(),
-              );
+              final screenCenterOffset =
+                  (bottomNavBarHeight - viewPadding.top) / 2;
+              final boardTop =
+                  ((inner.maxHeight - boardBlockHeight) / 2 +
+                          screenCenterOffset)
+                      .clamp(
+                        0.0,
+                        (inner.maxHeight - boardBlockHeight).toDouble(),
+                      );
               final explorerHeight = (boardTop - _explorerBoardGap).clamp(
                 0.0,
                 double.infinity,

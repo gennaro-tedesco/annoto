@@ -12,6 +12,7 @@ abstract final class SettingsService {
   static const _keyEngineHash = 'engineHash';
   static const _keySelectedEnginePackage = 'selectedEnginePackage';
   static const _keyAnalysisDepth = 'analysisDepth';
+  static const _keyKeepAnalysisAlive = 'keepAnalysisAlive';
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -67,6 +68,11 @@ abstract final class SettingsService {
       analysisDepthNotifier.value = analysisDepth;
     }
 
+    final keepAnalysisAlive = prefs.getBool(_keyKeepAnalysisAlive);
+    if (keepAnalysisAlive != null) {
+      keepAnalysisAliveNotifier.value = keepAnalysisAlive;
+    }
+
     themeNotifier.addListener(
       () => prefs.setString(_keyTheme, themeNotifier.value.name),
     );
@@ -99,6 +105,10 @@ abstract final class SettingsService {
     });
     analysisDepthNotifier.addListener(
       () => prefs.setInt(_keyAnalysisDepth, analysisDepthNotifier.value),
+    );
+    keepAnalysisAliveNotifier.addListener(
+      () =>
+          prefs.setBool(_keyKeepAnalysisAlive, keepAnalysisAliveNotifier.value),
     );
   }
 }
