@@ -190,10 +190,17 @@ class _BoardScreenState extends State<BoardScreen> {
         orElse: () => PieceSet.cburnett,
       );
       selectedEnginePackageNotifier.addListener(_onEnginePackageChanged);
+      keepAnalysisAliveNotifier.addListener(_onKeepAnalysisAliveChanged);
       if (!widget.engineMode) {
         _buildGameAnalysisController();
       }
       _initialised = true;
+    }
+  }
+
+  void _onKeepAnalysisAliveChanged() {
+    if (!keepAnalysisAliveNotifier.value) {
+      _stopForegroundServiceIfActive();
     }
   }
 
@@ -240,7 +247,9 @@ class _BoardScreenState extends State<BoardScreen> {
     if (keepAnalysisAliveNotifier.value) {
       if (isRunning && !_analysisForegroundServiceActive) {
         _analysisForegroundServiceActive = true;
-        unawaited(AnalysisForegroundService.start());
+        AnalysisForegroundService.start().catchError((_) {
+          if (mounted) _analysisForegroundServiceActive = false;
+        });
       } else if (!isRunning && _analysisForegroundServiceActive) {
         _analysisForegroundServiceActive = false;
         unawaited(AnalysisForegroundService.stop());
@@ -259,6 +268,7 @@ class _BoardScreenState extends State<BoardScreen> {
   @override
   void dispose() {
     selectedEnginePackageNotifier.removeListener(_onEnginePackageChanged);
+    keepAnalysisAliveNotifier.removeListener(_onKeepAnalysisAliveChanged);
     _chapterSearchController.dispose();
     _debounce?.cancel();
     _explorerDebounce?.cancel();

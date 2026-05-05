@@ -42,13 +42,13 @@ class AnalysisForegroundService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 startForeground(NOTIFICATION_ID, buildNotification())
+                wakeLock?.release()
                 wakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
                     .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "annoto::AnalysisWakeLock")
                     .also { it.acquire() }
             }
             ACTION_STOP -> {
-                wakeLock?.release()
-                wakeLock = null
+                releaseWakeLock()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                 } else {
@@ -59,6 +59,16 @@ class AnalysisForegroundService : Service() {
             }
         }
         return START_NOT_STICKY
+    }
+
+    override fun onDestroy() {
+        releaseWakeLock()
+        super.onDestroy()
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.release()
+        wakeLock = null
     }
 
     private fun buildNotification(): Notification =
