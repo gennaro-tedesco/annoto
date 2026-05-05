@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 
 class AnalysisForegroundService : Service() {
@@ -16,6 +17,8 @@ class AnalysisForegroundService : Service() {
         const val ACTION_START = "com.example.annoto.ACTION_START_ANALYSIS"
         const val ACTION_STOP = "com.example.annoto.ACTION_STOP_ANALYSIS"
     }
+
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -37,8 +40,15 @@ class AnalysisForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> startForeground(NOTIFICATION_ID, buildNotification())
+            ACTION_START -> {
+                startForeground(NOTIFICATION_ID, buildNotification())
+                wakeLock = (getSystemService(POWER_SERVICE) as PowerManager)
+                    .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "annoto::AnalysisWakeLock")
+                    .also { it.acquire() }
+            }
             ACTION_STOP -> {
+                wakeLock?.release()
+                wakeLock = null
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                 } else {
