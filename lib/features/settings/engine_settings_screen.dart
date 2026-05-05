@@ -120,6 +120,7 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
         engineHashNotifier,
         selectedEnginePackageNotifier,
         analysisDepthNotifier,
+        keepAnalysisAliveNotifier,
       ]),
       builder: (context, child) {
         final theme = Theme.of(context);
@@ -233,6 +234,17 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
                       ),
                     ],
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: SwitchListTile(
+                  title: Text(
+                    'Background analysis',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  value: keepAnalysisAliveNotifier.value,
+                  onChanged: (v) => keepAnalysisAliveNotifier.value = v,
                 ),
               ),
             ],

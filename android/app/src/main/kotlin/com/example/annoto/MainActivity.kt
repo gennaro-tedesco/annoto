@@ -1,9 +1,13 @@
 package com.example.annoto
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -15,11 +19,23 @@ class MainActivity : FlutterActivity() {
     private val updateChannel = "com.example.annoto/update"
     private val oexMethodChannel = "app/oex_engine"
     private val oexEventChannel = "app/oex_engine_output"
+    private val foregroundServiceChannel = "app/foreground_service"
 
     private val oexBridge by lazy { OexEngineBridge(this) }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                0,
+            )
+        }
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, updateChannel)
             .setMethodCallHandler { call, result ->
@@ -100,6 +116,31 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, foregroundServiceChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        val intent = Intent(this, AnalysisForegroundService::class.java).apply {
+                            action = AnalysisForegroundService.ACTION_START
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+                        result.success(null)
+                    }
+                    "stop" -> {
+                        val intent = Intent(this, AnalysisForegroundService::class.java).apply {
+                            action = AnalysisForegroundService.ACTION_STOP
+                        }
+                        startService(intent)
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, oexEventChannel)
             .setStreamHandler(object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -114,6 +155,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         oexBridge.stop()
+        stopService(Intent(this, AnalysisForegroundService::class.java))
         super.onDestroy()
     }
 }
