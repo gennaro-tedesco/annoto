@@ -100,7 +100,7 @@ class _BoardScreenState extends State<BoardScreen> {
   ExplorerResult? _explorerResult;
   bool _explorerLoading = false;
   String? _explorerError;
-  bool _openingExplorerVisible = true;
+  bool _openingExplorerVisible = false;
   bool _engineReady = false;
   bool _engineStarting = false;
   bool _engineEnabled = false;
