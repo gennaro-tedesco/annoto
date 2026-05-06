@@ -979,13 +979,9 @@ class _BoardScreenState extends State<BoardScreen> {
     if (result == null || result.moves.isEmpty) return const SizedBox.expand();
     return ColoredBox(
       color: panelColor,
-      child: Scrollbar(
-        child: SingleChildScrollView(
-          child: OpeningExplorerPanel(
-            result: result,
-            onMoveTap: _onExplorerMoveTap,
-          ),
-        ),
+      child: OpeningExplorerPanel(
+        result: result,
+        onMoveTap: _onExplorerMoveTap,
       ),
     );
   }

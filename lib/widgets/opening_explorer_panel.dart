@@ -34,11 +34,20 @@ class OpeningExplorerPanel extends StatelessWidget {
     if (moves.isEmpty) return const SizedBox.shrink();
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
       children: [
         _buildHeader(theme),
-        for (final move in moves) _buildMoveRow(theme, move),
-        _buildTotalRow(theme),
+        Expanded(
+          child: Scrollbar(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final move in moves) _buildMoveRow(theme, move),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -93,39 +102,6 @@ class OpeningExplorerPanel extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildTotalRow(ThemeData theme) {
-    final total = result.white + result.draws + result.black;
-    if (total == 0) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 2, 8, 4),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 52,
-            child: Text(
-              'Σ',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 52,
-            child: Text(
-              _formatGames(total),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-          ),
-          Expanded(
-            child: _buildBar(result.white, result.draws, result.black, total),
-          ),
-        ],
       ),
     );
   }
