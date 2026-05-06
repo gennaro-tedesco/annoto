@@ -1388,9 +1388,9 @@ class _BoardScreenState extends State<BoardScreen> {
                     if (_openingExplorerVisible && explorerHeight > 0)
                       Positioned(
                         top: 0,
-                        left: 0,
-                        right: 0,
-                        height: explorerHeight,
+                        left: (constraints.maxWidth - boardSize) / 2,
+                        width: boardSize,
+                        height: explorerHeight * _engineBoardWidthFactor,
                         child: _buildExplorerPanel(theme),
                       ),
                     if (_engineEnabled && boardBottom < inner.maxHeight)
