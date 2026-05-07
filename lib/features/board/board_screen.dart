@@ -766,6 +766,32 @@ class _BoardScreenState extends State<BoardScreen> {
     return _winningChancesFromCp(mate > 0 ? 1000 : -1000);
   }
 
+  List<int?> _computeMoveCategories(List<EngineEvaluation?> evals) {
+    final categories = List<int?>.filled(evals.length, null);
+    for (int i = 0; i < evals.length; i++) {
+      final current = evals[i];
+      if (current == null) continue;
+      final currentWc = _winningChances(current);
+      if (currentWc == null) continue;
+      final double prevWc;
+      if (i == 0) {
+        prevWc = 0.0;
+      } else {
+        final prev = evals[i - 1];
+        if (prev == null) continue;
+        final wc = _winningChances(prev);
+        if (wc == null) continue;
+        prevWc = wc;
+      }
+      final isWhiteTurn = i % 2 == 0;
+      final loss = (isWhiteTurn ? prevWc - currentWc : currentWc - prevWc)
+          .clamp(0.0, 1.0);
+      final cat = _engineArrowCategory(loss);
+      if (cat > 0) categories[i] = cat;
+    }
+    return categories;
+  }
+
   int _engineArrowCategory(double loss) {
     if (loss >= 0.2) return 2;
     if (loss >= 0.1) return 1;
@@ -1013,6 +1039,7 @@ class _BoardScreenState extends State<BoardScreen> {
             activePly: _onMainLine ? _path.length - 1 : -1,
             onTapPly: _navigateToPly,
             division: _gameDivision,
+            moveCategories: _computeMoveCategories(progress.evaluations),
           ),
           Positioned(
             top: 4,

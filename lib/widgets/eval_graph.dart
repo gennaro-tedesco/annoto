@@ -10,6 +10,7 @@ class EvalGraph extends StatelessWidget {
     required this.activePly,
     required this.onTapPly,
     required this.division,
+    this.moveCategories,
   });
 
   final List<EngineEvaluation?> evaluations;
@@ -17,6 +18,7 @@ class EvalGraph extends StatelessWidget {
   final int activePly;
   final void Function(int ply) onTapPly;
   final GameDivision division;
+  final List<int?>? moveCategories;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +60,7 @@ class EvalGraph extends StatelessWidget {
           activePly: activePly,
           theme: theme,
           division: division,
+          moveCategories: moveCategories,
         ),
         child: const SizedBox.expand(),
       ),
@@ -72,6 +75,7 @@ class _EvalGraphPainter extends CustomPainter {
     required this.activePly,
     required this.theme,
     required this.division,
+    this.moveCategories,
   });
 
   final List<EngineEvaluation?> evaluations;
@@ -79,6 +83,7 @@ class _EvalGraphPainter extends CustomPainter {
   final int activePly;
   final ThemeData theme;
   final GameDivision division;
+  final List<int?>? moveCategories;
 
   static const int _maxCp = 700;
   static const double _padding = 4.0;
@@ -159,6 +164,24 @@ class _EvalGraphPainter extends CustomPainter {
     return pawns >= 0
         ? '+${pawns.toStringAsFixed(2)}'
         : pawns.toStringAsFixed(2);
+  }
+
+  void _drawMoveQualityLabels(
+    Canvas canvas,
+    Size size,
+    List<(int, Offset, bool)> points,
+  ) {
+    final cats = moveCategories;
+    if (cats == null) return;
+    for (final (ply, point, _) in points) {
+      if (ply >= cats.length) continue;
+      final category = cats[ply];
+      if (category == null || category == 0) continue;
+      final color = category >= 2
+          ? const Color(0xFFEF5350)
+          : const Color(0xFFFBC02D);
+      canvas.drawCircle(point, _activePointRadius, Paint()..color = color);
+    }
   }
 
   @override
@@ -267,6 +290,8 @@ class _EvalGraphPainter extends CustomPainter {
       canvas.drawLine(p1, p2, linePaint);
     }
 
+    _drawMoveQualityLabels(canvas, size, points);
+
     if (activePly >= 0 && activePly < totalPlies) {
       final cursorX = activePly * step + step / 2;
       final eval = activePly < evaluations.length
@@ -335,5 +360,6 @@ class _EvalGraphPainter extends CustomPainter {
       old.totalPlies != totalPlies ||
       old.activePly != activePly ||
       old.division != division ||
-      old.theme != theme;
+      old.theme != theme ||
+      old.moveCategories != moveCategories;
 }
