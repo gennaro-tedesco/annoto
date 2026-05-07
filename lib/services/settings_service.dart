@@ -13,6 +13,7 @@ abstract final class SettingsService {
   static const _keySelectedEnginePackage = 'selectedEnginePackage';
   static const _keyAnalysisDepth = 'analysisDepth';
   static const _keyKeepAnalysisAlive = 'keepAnalysisAlive';
+  static const _keyEngineArrows = 'engineArrows';
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -73,6 +74,11 @@ abstract final class SettingsService {
       keepAnalysisAliveNotifier.value = keepAnalysisAlive;
     }
 
+    final engineArrows = prefs.getBool(_keyEngineArrows);
+    if (engineArrows != null) {
+      engineArrowsNotifier.value = engineArrows;
+    }
+
     themeNotifier.addListener(
       () => prefs.setString(_keyTheme, themeNotifier.value.name),
     );
@@ -109,6 +115,9 @@ abstract final class SettingsService {
     keepAnalysisAliveNotifier.addListener(
       () =>
           prefs.setBool(_keyKeepAnalysisAlive, keepAnalysisAliveNotifier.value),
+    );
+    engineArrowsNotifier.addListener(
+      () => prefs.setBool(_keyEngineArrows, engineArrowsNotifier.value),
     );
   }
 }

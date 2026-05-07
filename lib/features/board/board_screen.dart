@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/app/themes.dart';
@@ -63,7 +64,7 @@ class BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<BoardScreen> {
   static const double _boardWidthFactor = 0.9;
   static const double _engineBoardWidthFactor = 0.92;
-  static const Duration _engineAnimationDuration = Duration(milliseconds: 100);
+  static const Duration _engineAnimationDuration = Duration.zero;
   static const int _pvFoldDepth = 10;
   static const double _panelOutlineAlpha = 0.08;
   static const double _boardSelectorsGap = 6.0;
@@ -93,6 +94,7 @@ class _BoardScreenState extends State<BoardScreen> {
   bool _initialised = false;
   final _moveScrollController = ScrollController();
   final _verticalMoveScrollController = ScrollController();
+  final _moveTileKeys = <PgnChildNode<PgnNodeData>, GlobalKey>{};
   late final ChessEngineService _engine;
   late final bool _ownsEngine;
   Timer? _debounce;
@@ -191,12 +193,15 @@ class _BoardScreenState extends State<BoardScreen> {
       );
       selectedEnginePackageNotifier.addListener(_onEnginePackageChanged);
       keepAnalysisAliveNotifier.addListener(_onKeepAnalysisAliveChanged);
+      engineArrowsNotifier.addListener(_onEngineArrowsChanged);
       if (!widget.engineMode) {
         _buildGameAnalysisController();
       }
       _initialised = true;
     }
   }
+
+  void _onEngineArrowsChanged() => setState(() {});
 
   void _onKeepAnalysisAliveChanged() {
     if (!keepAnalysisAliveNotifier.value) {
@@ -269,6 +274,7 @@ class _BoardScreenState extends State<BoardScreen> {
   void dispose() {
     selectedEnginePackageNotifier.removeListener(_onEnginePackageChanged);
     keepAnalysisAliveNotifier.removeListener(_onKeepAnalysisAliveChanged);
+    engineArrowsNotifier.removeListener(_onEngineArrowsChanged);
     _chapterSearchController.dispose();
     _debounce?.cancel();
     _explorerDebounce?.cancel();
@@ -340,6 +346,7 @@ class _BoardScreenState extends State<BoardScreen> {
     _positionMap.clear();
     _moveMap.clear();
     _parentMap.clear();
+    _moveTileKeys.clear();
     final newGame = PgnGame.parsePgn(
       _games[index],
       initHeaders: PgnGame.emptyHeaders,
@@ -486,6 +493,9 @@ class _BoardScreenState extends State<BoardScreen> {
     return path.reversed.toList();
   }
 
+  GlobalKey _keyForMove(PgnChildNode<PgnNodeData> node) =>
+      _moveTileKeys[node] ??= GlobalKey();
+
   void _navigate(List<PgnChildNode<PgnNodeData>> newPath) {
     setState(() {
       _path = List.of(newPath);
@@ -512,18 +522,13 @@ class _BoardScreenState extends State<BoardScreen> {
       );
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_moveScrollController.hasClients) {
-        _moveScrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      } else if (_verticalMoveScrollController.hasClients) {
-        final offset = newPath.isNotEmpty && newPath.last.children.isEmpty
-            ? _verticalMoveScrollController.position.maxScrollExtent
-            : 0.0;
-        _verticalMoveScrollController.animateTo(
-          offset,
+      final context = newPath.isEmpty
+          ? null
+          : _moveTileKeys[newPath.last]?.currentContext;
+      if (context != null) {
+        Scrollable.ensureVisible(
+          context,
+          alignment: 0.5,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
@@ -741,6 +746,79 @@ class _BoardScreenState extends State<BoardScreen> {
 
   int _cpFromWhite(int cp) => _currentPosition.turn == Side.white ? cp : -cp;
 
+  double _winningChancesFromCp(int cp) {
+    const multiplier = -0.00368208;
+    return (2 / (1 + math.exp(multiplier * cp.clamp(-1000, 1000))) - 1).clamp(
+      -1.0,
+      1.0,
+    );
+  }
+
+  double? _winningChances(EngineEvaluation eval) {
+    final cp = eval.cp;
+    if (cp != null) return _winningChancesFromCp(cp);
+    final mate = eval.mate;
+    if (mate == null || mate == 0) return null;
+    return _winningChancesFromCp(mate > 0 ? 1000 : -1000);
+  }
+
+  int _engineArrowCategory(double loss) {
+    if (loss >= 0.2) return 2;
+    if (loss >= 0.1) return 1;
+    return 0;
+  }
+
+  Color _engineArrowColor(int category, double strength, int categoryIndex) {
+    final alpha = (0.86 - categoryIndex * 0.16).clamp(0.38, 0.86);
+    if (category == 2) return const Color(0xFFEF5350).withValues(alpha: alpha);
+    if (category == 1) return const Color(0xFFFBC02D).withValues(alpha: alpha);
+    return Color.lerp(
+      const Color(0xFF81C784),
+      const Color(0xFF2E7D32),
+      strength,
+    )!.withValues(alpha: alpha);
+  }
+
+  ISet<Shape> _engineShapes() {
+    if (_evaluations.isEmpty) {
+      return const ISetConst({});
+    }
+
+    final baseline = _winningChances(_evaluations.first);
+    if (baseline == null) return const ISetConst({});
+
+    final shapes = <Shape>{};
+    final seenMoves = <String>{};
+    final categoryCounts = <int, int>{};
+
+    for (final eval in _evaluations) {
+      final uci = eval.pv.firstOrNull ?? eval.bestMove;
+      if (uci == null || !seenMoves.add(uci)) continue;
+
+      final move = Move.parse(uci);
+      if (move is! NormalMove || !_currentPosition.isLegal(move)) continue;
+
+      final winningChances = _winningChances(eval);
+      if (winningChances == null) continue;
+
+      final loss = (baseline - winningChances).clamp(0.0, 1.0);
+      final category = _engineArrowCategory(loss);
+      final categoryIndex = categoryCounts[category] ?? 0;
+      categoryCounts[category] = categoryIndex + 1;
+      final strength = category == 0 ? 1 - (loss / 0.1).clamp(0.0, 1.0) : 0.0;
+      shapes.add(
+        Arrow(
+          color: _engineArrowColor(category, strength, categoryIndex),
+          orig: move.from,
+          dest: move.to,
+          scale: 0.42,
+        ),
+      );
+    }
+
+    return shapes.lock;
+  }
+
   Widget _buildEvalLine(ThemeData theme, EngineEvaluation eval, int pvIndex) {
     final String? evalText;
     if (eval.mate != null) {
@@ -843,10 +921,17 @@ class _BoardScreenState extends State<BoardScreen> {
     if (controller == null) return;
 
     final status = controller.progress.value.status;
+    var disabledLiveEngine = false;
 
     if (_engine.jobKind.value == EngineJobKind.liveAnalysis) {
-      NotificationService.showInfo('Disable engine before running analysis');
-      return;
+      _analysisSub?.cancel();
+      _analysisSub = null;
+      _engine.stopAnalysis();
+      setState(() {
+        _engineEnabled = false;
+        _evaluations = [];
+      });
+      disabledLiveEngine = true;
     }
 
     if (selectedEnginePackageNotifier.value == null) {
@@ -862,7 +947,11 @@ class _BoardScreenState extends State<BoardScreen> {
     if (!rerun &&
         (status == GameAnalysisStatus.done ||
             controller.progress.value.evaluations.any((e) => e != null))) {
-      setState(() => _showAnalysisGraph = !_showAnalysisGraph);
+      setState(
+        () => _showAnalysisGraph = disabledLiveEngine
+            ? true
+            : !_showAnalysisGraph,
+      );
       return;
     }
 
@@ -1974,6 +2063,7 @@ class _BoardScreenState extends State<BoardScreen> {
               vNode.data.san,
               isVActive,
               () => _navigate(_pathTo(vNode)),
+              key: _keyForMove(vNode),
             ),
           );
           tokens.addAll(_commentTokens(theme, vNode.data.comments));
@@ -2021,6 +2111,7 @@ class _BoardScreenState extends State<BoardScreen> {
             mainChild.data.san,
             isMainActive,
             () => _navigate(_pathTo(mainChild)),
+            key: _keyForMove(mainChild),
           ),
         );
         tokens.addAll(_commentTokens(theme, mainChild.data.comments));
@@ -2091,10 +2182,13 @@ class _BoardScreenState extends State<BoardScreen> {
 
     return ColoredBox(
       color: movesPanelColor,
-      child: ListView(
+      child: SingleChildScrollView(
         controller: _verticalMoveScrollController,
         padding: const EdgeInsets.symmetric(vertical: 4),
-        children: widgets,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: widgets,
+        ),
       ),
     );
   }
@@ -2168,6 +2262,8 @@ class _BoardScreenState extends State<BoardScreen> {
           _path.last == bNode,
       onWhiteTap: wNode != null ? () => _navigate(_pathTo(wNode)) : null,
       onBlackTap: bNode != null ? () => _navigate(_pathTo(bNode)) : null,
+      whiteKey: wNode != null ? _keyForMove(wNode) : null,
+      blackKey: bNode != null ? _keyForMove(bNode) : null,
     );
   }
 
@@ -2265,6 +2361,7 @@ class _BoardScreenState extends State<BoardScreen> {
           node.data.san,
           isActive,
           () => _navigate(_pathTo(node)),
+          key: _keyForMove(node),
         ),
       );
       tokens.addAll(_commentTokens(theme, node.data.comments));
@@ -2296,6 +2393,8 @@ class _BoardScreenState extends State<BoardScreen> {
     required bool isBlackActive,
     required VoidCallback? onWhiteTap,
     required VoidCallback? onBlackTap,
+    Key? whiteKey,
+    Key? blackKey,
   }) {
     final comments = [
       ...displayPgnCommentTexts(whiteStartingComments),
@@ -2336,6 +2435,7 @@ class _BoardScreenState extends State<BoardScreen> {
                               whiteSan,
                               isWhiteActive,
                               onWhiteTap!,
+                              key: whiteKey,
                             )
                           : const SizedBox.shrink(),
                     ),
@@ -2348,6 +2448,7 @@ class _BoardScreenState extends State<BoardScreen> {
                               blackSan,
                               isBlackActive,
                               onBlackTap!,
+                              key: blackKey,
                             )
                           : const SizedBox.shrink(),
                     ),
@@ -2401,9 +2502,11 @@ class _BoardScreenState extends State<BoardScreen> {
     ThemeData theme,
     String san,
     bool active,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    Key? key,
+  }) {
     return GestureDetector(
+      key: key,
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -2425,22 +2528,25 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   ISet<Shape> get _currentShapes {
-    if (_path.isEmpty) {
-      return const ISetConst({});
-    }
-
-    final node = _path.last.data;
     final shapes = <Shape>{};
-    for (final parsedComment in [
-      ...parsePgnComments(node.startingComments),
-      ...parsePgnComments(node.comments),
-    ]) {
-      for (final shape in parsedComment.shapes) {
-        final boardShape = _toBoardShape(shape);
-        if (boardShape != null) {
-          shapes.add(boardShape);
+
+    if (_path.isNotEmpty) {
+      final node = _path.last.data;
+      for (final parsedComment in [
+        ...parsePgnComments(node.startingComments),
+        ...parsePgnComments(node.comments),
+      ]) {
+        for (final shape in parsedComment.shapes) {
+          final boardShape = _toBoardShape(shape);
+          if (boardShape != null) {
+            shapes.add(boardShape);
+          }
         }
       }
+    }
+
+    if (_engineEnabled && engineArrowsNotifier.value) {
+      shapes.addAll(_engineShapes());
     }
     return shapes.lock;
   }

@@ -121,6 +121,7 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
         selectedEnginePackageNotifier,
         analysisDepthNotifier,
         keepAnalysisAliveNotifier,
+        engineArrowsNotifier,
       ]),
       builder: (context, child) {
         final theme = Theme.of(context);
@@ -151,11 +152,15 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Threads', style: theme.textTheme.titleMedium),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${engineThreadsNotifier.value}',
-                        style: theme.textTheme.bodySmall,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Threads', style: theme.textTheme.titleMedium),
+                          Text(
+                            '${engineThreadsNotifier.value}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
                       ),
                       Slider(
                         min: 1,
@@ -178,11 +183,15 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Hash', style: theme.textTheme.titleMedium),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${engineHashNotifier.value}MB',
-                        style: theme.textTheme.bodySmall,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Hash', style: theme.textTheme.titleMedium),
+                          Text(
+                            '${engineHashNotifier.value}MB',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
                       ),
                       SliderTheme(
                         data: SliderTheme.of(
@@ -213,14 +222,18 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Analysis depth',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${analysisDepthNotifier.value}',
-                        style: theme.textTheme.bodySmall,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Analysis depth',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          Text(
+                            '${analysisDepthNotifier.value}',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
                       ),
                       Slider(
                         min: 8,
@@ -245,6 +258,17 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
                   ),
                   value: keepAnalysisAliveNotifier.value,
                   onChanged: (v) => keepAnalysisAliveNotifier.value = v,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: SwitchListTile(
+                  title: Text(
+                    'Engine arrows',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  value: engineArrowsNotifier.value,
+                  onChanged: (v) => engineArrowsNotifier.value = v,
                 ),
               ),
             ],

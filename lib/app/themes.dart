@@ -12,6 +12,7 @@ final engineNameNotifier = ValueNotifier<String?>(null);
 final selectedEnginePackageNotifier = ValueNotifier<String?>(null);
 final analysisDepthNotifier = ValueNotifier<int>(18);
 final keepAnalysisAliveNotifier = ValueNotifier<bool>(true);
+final engineArrowsNotifier = ValueNotifier<bool>(true);
 
 enum AppThemeOption {
   none,
