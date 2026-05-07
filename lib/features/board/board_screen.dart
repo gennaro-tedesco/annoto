@@ -86,6 +86,7 @@ class _BoardScreenState extends State<BoardScreen> {
   final _moveMap = <PgnChildNode<PgnNodeData>, Move>{};
   final _parentMap = <PgnChildNode<PgnNodeData>, PgnNode<PgnNodeData>>{};
   List<PgnChildNode<PgnNodeData>> _path = [];
+  Position _startingPosition = Chess.initial;
   NormalMove? _promotionMove;
   Side _orientation = Side.white;
   double _verticalDragAccum = 0.0;
@@ -134,7 +135,7 @@ class _BoardScreenState extends State<BoardScreen> {
   }
 
   Position get _currentPosition =>
-      _path.isEmpty ? Chess.initial : _positionMap[_path.last]!;
+      _path.isEmpty ? _startingPosition : _positionMap[_path.last]!;
 
   PgnNode<PgnNodeData> get _currentNode =>
       _path.isEmpty ? _game.moves : _path.last;
@@ -172,7 +173,8 @@ class _BoardScreenState extends State<BoardScreen> {
       _engineReady = _engine.isStarted;
       if (widget.engineMode) {
         _game = PgnGame.parsePgn('', initHeaders: PgnGame.emptyHeaders);
-        _buildMaps(_game.moves, Chess.initial);
+        _startingPosition = Chess.initial;
+        _buildMaps(_game.moves, _startingPosition);
         _gameDivision = divideGame(_mainlineBoards());
       } else {
         final scoresheet =
@@ -180,7 +182,8 @@ class _BoardScreenState extends State<BoardScreen> {
         _games = splitPgnGames(scoresheet.pgn);
         if (_games.isEmpty) _games = [scoresheet.pgn];
         _game = PgnGame.parsePgn(_games[0], initHeaders: PgnGame.emptyHeaders);
-        _buildMaps(_game.moves, PgnGame.startingPosition(_game.headers));
+        _startingPosition = PgnGame.startingPosition(_game.headers);
+        _buildMaps(_game.moves, _startingPosition);
         _gameDivision = divideGame(_mainlineBoards());
       }
       if (widget.engineMode) {
@@ -351,7 +354,8 @@ class _BoardScreenState extends State<BoardScreen> {
       _games[index],
       initHeaders: PgnGame.emptyHeaders,
     );
-    _buildMaps(newGame.moves, PgnGame.startingPosition(newGame.headers));
+    _startingPosition = PgnGame.startingPosition(newGame.headers);
+    _buildMaps(newGame.moves, _startingPosition);
     setState(() {
       _currentChapter = index;
       _game = newGame;
