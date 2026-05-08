@@ -16,6 +16,7 @@ import 'package:annoto/services/lichess_service.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/models/opening_explorer.dart';
 import 'package:annoto/services/opening_explorer_service.dart';
+import 'package:annoto/features/editor/board_editor_screen.dart';
 import 'package:annoto/widgets/eval_graph.dart';
 import 'package:annoto/widgets/opening_explorer_panel.dart';
 import 'package:chessground/chessground.dart';
@@ -23,14 +24,6 @@ import 'package:dartchess/dartchess.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
-
-const boardColorSchemes = <(String, ChessboardColorScheme)>[
-  ('Brown', ChessboardColorScheme.brown),
-  ('Blue', ChessboardColorScheme.blue),
-  ('Green', ChessboardColorScheme.green),
-  ('Grey', ChessboardColorScheme.grey),
-  ('Olive', ChessboardColorScheme.olive),
-];
 
 const _annotationColors = <CommentShapeColor, Color>{
   CommentShapeColor.green: Color(0xAA4CAF50),
@@ -636,6 +629,51 @@ class _BoardScreenState extends State<BoardScreen> {
     if (_multiPv == n) return;
     setState(() => _multiPv = n);
     if (_engineEnabled) _startAnalysis();
+  }
+
+  Future<void> _openEditor() async {
+    final fen = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const BoardEditorScreen()),
+    );
+    if (fen != null && mounted) {
+      _loadFenFromEditor(fen);
+    }
+  }
+
+  void _loadFenFromEditor(String fen) {
+    final Chess newPos;
+    try {
+      newPos = Chess.fromSetup(Setup.parseFen(fen));
+    } catch (_) {
+      NotificationService.showError('invalid position');
+      return;
+    }
+    _debounce?.cancel();
+    _analysisSub?.cancel();
+    _analysisSub = null;
+    _engine.stopAnalysis();
+    setState(() {
+      _game = PgnGame.parsePgn('', initHeaders: PgnGame.emptyHeaders);
+      _startingPosition = newPos;
+      _positionMap.clear();
+      _moveMap.clear();
+      _parentMap.clear();
+      _path = [];
+      _moveTileKeys.clear();
+      _evaluations = [];
+      _expandedPvs.clear();
+      _explorerResult = null;
+      _explorerLoading = false;
+      _explorerError = null;
+      _buildMaps(_game.moves, _startingPosition);
+      _gameDivision = divideGame(_mainlineBoards());
+    });
+    if (_engineEnabled) {
+      _startAnalysis();
+    }
+    if (_openingExplorerVisible) {
+      _fetchExplorer();
+    }
   }
 
   void _startAnalysis() {
@@ -1744,7 +1782,9 @@ class _BoardScreenState extends State<BoardScreen> {
       width: buttonSize,
       height: buttonSize,
     );
-    const boardControlsWidth = buttonSize * 3 + _selectorGap * 2;
+    final boardControlsWidth = widget.engineMode
+        ? buttonSize * 4 + _selectorGap * 3
+        : buttonSize * 3 + _selectorGap * 2;
     final engineControlsWidth = widget.engineMode
         ? buttonSize * 5 + _selectorGap * 4
         : buttonSize * 4 + _selectorGap * 3;
@@ -1931,6 +1971,17 @@ class _BoardScreenState extends State<BoardScreen> {
           )
         : null;
 
+    final editBoardBtn = wrapCompactControl(
+      IconButton(
+        iconSize: primaryIconSize,
+        constraints: buttonConstraints,
+        padding: EdgeInsets.zero,
+        icon: const Icon(LucideIcons.pencil_ruler),
+        tooltip: 'Edit board',
+        onPressed: () => unawaited(_openEditor()),
+      ),
+    );
+
     final boardControlsGroup = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1939,6 +1990,10 @@ class _BoardScreenState extends State<BoardScreen> {
         piecesBtn,
         const SizedBox(width: _selectorGap),
         flipBtn,
+        if (widget.engineMode) ...[
+          const SizedBox(width: _selectorGap),
+          editBoardBtn,
+        ],
       ],
     );
 

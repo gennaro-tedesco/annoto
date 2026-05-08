@@ -127,17 +127,7 @@ class _BoardEditorState extends State<ChessboardEditor> {
                 return Stack(
                   alignment: Alignment.topLeft,
                   children: [
-                    // Show a drop target if a piece is dragged over the square
-                    if (candidateData.isNotEmpty)
-                      Transform.scale(
-                        scale: 2,
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            color: Color(0x33000000),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
+                    if (candidateData.isNotEmpty) _dragTarget,
                     if (widget.pointerMode == EditorPointerMode.drag &&
                         piece != null)
                       Draggable(
@@ -256,6 +246,22 @@ class _BoardEditorState extends State<ChessboardEditor> {
       child: borderedChessboard,
     );
   }
+
+  Widget get _dragTarget => switch (widget.settings.dragTargetKind) {
+    DragTargetKind.circle => Transform.scale(
+      scale: 2,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0x33000000),
+          shape: BoxShape.circle,
+        ),
+      ),
+    ),
+    DragTargetKind.square => Container(
+      decoration: const BoxDecoration(color: Color(0x33000000)),
+    ),
+    DragTargetKind.none => const SizedBox.shrink(),
+  };
 
   void _onTapEvent(Offset localPosition) {
     if (widget.pointerMode == EditorPointerMode.drag) {
