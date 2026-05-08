@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:chessground/chessground.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 final themeNotifier = ValueNotifier<AppThemeOption>(AppThemeOption.none);
@@ -13,6 +14,14 @@ final selectedEnginePackageNotifier = ValueNotifier<String?>(null);
 final analysisDepthNotifier = ValueNotifier<int>(18);
 final keepAnalysisAliveNotifier = ValueNotifier<bool>(true);
 final engineArrowsNotifier = ValueNotifier<bool>(true);
+
+const boardColorSchemes = <(String, ChessboardColorScheme)>[
+  ('Brown', ChessboardColorScheme.brown),
+  ('Blue', ChessboardColorScheme.blue),
+  ('Green', ChessboardColorScheme.green),
+  ('Grey', ChessboardColorScheme.grey),
+  ('Olive', ChessboardColorScheme.olive),
+];
 
 enum AppThemeOption {
   none,
