@@ -29,6 +29,49 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   String _initialFullPgn = '';
   String _initialPgn = '';
   MovePair? _editingMove;
+  final Map<int, GlobalKey> _suggestionKeys = {};
+
+  GlobalKey _keyFor(int plyIndex) =>
+      _suggestionKeys.putIfAbsent(plyIndex, () => GlobalKey());
+
+  Future<void> _showSuggestions(
+    int plyIndex,
+    TextEditingController controller,
+  ) async {
+    final box =
+        _keyFor(plyIndex).currentContext!.findRenderObject()! as RenderBox;
+    final offset = box.localToGlobal(Offset.zero);
+    final size = box.size;
+    final screenSize = MediaQuery.of(context).size;
+    final allSans = _moves
+        .expand((m) => [m.white.text.trim(), m.black.text.trim()])
+        .toList();
+    final position = positionAtPly(allSans, plyIndex);
+    final suggestions = suggestMoves(position, controller.text.trim());
+
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx + 16,
+        offset.dy + size.height / 2,
+        screenSize.width,
+        screenSize.height - offset.dy - size.height / 2,
+      ),
+      items: suggestions
+          .map(
+            (san) => PopupMenuItem<String>(
+              value: san,
+              height: 32,
+              child: Text(san, style: Theme.of(context).textTheme.bodyLarge),
+            ),
+          )
+          .toList(),
+    );
+    if (selected != null && mounted) {
+      controller.text = selected;
+      _runValidation();
+    }
+  }
 
   static const double _inputCardsHeight = 30.0;
 
@@ -391,98 +434,150 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   ),
                 ),
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() => _editingMove = move);
-                      move.whiteFocus.requestFocus();
-                    },
-                    child: AbsorbPointer(
-                      absorbing: !isEditing,
-                      child: TextField(
-                        focusNode: move.whiteFocus,
-                        readOnly: !isEditing,
-                        controller: move.white,
-                        onChanged: (_) => _runValidation(),
-                        style: whiteInvalid
-                            ? TextStyle(color: theme.colorScheme.error)
-                            : null,
-                        decoration: InputDecoration(
-                          hintText: 'White',
-                          hintStyle: hintStyle,
-                          isDense: true,
-                          constraints: BoxConstraints(
-                            minHeight: _inputCardsHeight,
-                            maxHeight: _inputCardsHeight,
+                  child: Stack(
+                    key: _keyFor(whitePlyIndex),
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _editingMove = move);
+                          move.whiteFocus.requestFocus();
+                        },
+                        child: AbsorbPointer(
+                          absorbing: !isEditing,
+                          child: TextField(
+                            focusNode: move.whiteFocus,
+                            readOnly: !isEditing,
+                            controller: move.white,
+                            onChanged: (_) => _runValidation(),
+                            style: whiteInvalid
+                                ? TextStyle(color: theme.colorScheme.error)
+                                : null,
+                            decoration: InputDecoration(
+                              hintText: 'White',
+                              hintStyle: hintStyle,
+                              isDense: true,
+                              constraints: BoxConstraints(
+                                minHeight: _inputCardsHeight,
+                                maxHeight: _inputCardsHeight,
+                              ),
+                              contentPadding: EdgeInsets.only(
+                                left: 16,
+                                top: 8,
+                                bottom: 8,
+                                right: whiteInvalid ? 28 : 16,
+                              ),
+                              enabledBorder: whiteInvalid
+                                  ? OutlineInputBorder(
+                                      borderSide: BorderSide(
+                                        color: theme.colorScheme.error,
+                                      ),
+                                    )
+                                  : null,
+                              focusedBorder: whiteInvalid
+                                  ? OutlineInputBorder(
+                                      borderSide: BorderSide(
+                                        color: theme.colorScheme.error,
+                                      ),
+                                    )
+                                  : null,
+                            ),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          enabledBorder: whiteInvalid
-                              ? OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: theme.colorScheme.error,
-                                  ),
-                                )
-                              : null,
-                          focusedBorder: whiteInvalid
-                              ? OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: theme.colorScheme.error,
-                                  ),
-                                )
-                              : null,
                         ),
                       ),
-                    ),
+                      if (whiteInvalid)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: 28,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () =>
+                                _showSuggestions(whitePlyIndex, move.white),
+                            child: Center(
+                              child: Icon(
+                                Icons.auto_awesome,
+                                size: 14,
+                                color: theme.colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      setState(() => _editingMove = move);
-                      move.blackFocus.requestFocus();
-                    },
-                    child: AbsorbPointer(
-                      absorbing: !isEditing,
-                      child: TextField(
-                        focusNode: move.blackFocus,
-                        readOnly: !isEditing,
-                        controller: move.black,
-                        onChanged: (_) => _runValidation(),
-                        style: blackInvalid
-                            ? TextStyle(color: theme.colorScheme.error)
-                            : null,
-                        decoration: InputDecoration(
-                          hintText: 'Black',
-                          hintStyle: hintStyle,
-                          isDense: true,
-                          constraints: BoxConstraints(
-                            minHeight: _inputCardsHeight,
-                            maxHeight: _inputCardsHeight,
+                  child: Stack(
+                    key: _keyFor(blackPlyIndex),
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _editingMove = move);
+                          move.blackFocus.requestFocus();
+                        },
+                        child: AbsorbPointer(
+                          absorbing: !isEditing,
+                          child: TextField(
+                            focusNode: move.blackFocus,
+                            readOnly: !isEditing,
+                            controller: move.black,
+                            onChanged: (_) => _runValidation(),
+                            style: blackInvalid
+                                ? TextStyle(color: theme.colorScheme.error)
+                                : null,
+                            decoration: InputDecoration(
+                              hintText: 'Black',
+                              hintStyle: hintStyle,
+                              isDense: true,
+                              constraints: BoxConstraints(
+                                minHeight: _inputCardsHeight,
+                                maxHeight: _inputCardsHeight,
+                              ),
+                              contentPadding: EdgeInsets.only(
+                                left: 16,
+                                top: 8,
+                                bottom: 8,
+                                right: blackInvalid ? 28 : 16,
+                              ),
+                              enabledBorder: blackInvalid
+                                  ? OutlineInputBorder(
+                                      borderSide: BorderSide(
+                                        color: theme.colorScheme.error,
+                                      ),
+                                    )
+                                  : null,
+                              focusedBorder: blackInvalid
+                                  ? OutlineInputBorder(
+                                      borderSide: BorderSide(
+                                        color: theme.colorScheme.error,
+                                      ),
+                                    )
+                                  : null,
+                            ),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          enabledBorder: blackInvalid
-                              ? OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: theme.colorScheme.error,
-                                  ),
-                                )
-                              : null,
-                          focusedBorder: blackInvalid
-                              ? OutlineInputBorder(
-                                  borderSide: BorderSide(
-                                    color: theme.colorScheme.error,
-                                  ),
-                                )
-                              : null,
                         ),
                       ),
-                    ),
+                      if (blackInvalid)
+                        Positioned(
+                          right: 0,
+                          top: 0,
+                          bottom: 0,
+                          width: 28,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () =>
+                                _showSuggestions(blackPlyIndex, move.black),
+                            child: Center(
+                              child: Icon(
+                                Icons.auto_awesome,
+                                size: 14,
+                                color: theme.colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 36),

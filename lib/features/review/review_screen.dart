@@ -215,85 +215,89 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 ),
               ),
               Expanded(
-                child: TextField(
-                  controller: move.white,
-                  onChanged: (_) => _runValidation(),
-                  style: whiteInvalid
-                      ? TextStyle(color: theme.colorScheme.error)
-                      : null,
-                  decoration: InputDecoration(
-                    hintText: 'White',
-                    hintStyle: TextStyle(
-                      color: theme.colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.5,
+                child: whiteInvalid
+                    ? _InvalidMoveField(
+                        controller: move.white,
+                        hint: 'White',
+                        getSuggestions: () {
+                          final allSans = _moves
+                              .expand(
+                                (m) => [
+                                  m.white.text.trim(),
+                                  m.black.text.trim(),
+                                ],
+                              )
+                              .toList();
+                          return suggestMoves(
+                            positionAtPly(allSans, whitePlyIndex),
+                            move.white.text.trim(),
+                          );
+                        },
+                        onSelected: _runValidation,
+                      )
+                    : TextField(
+                        controller: move.white,
+                        onChanged: (_) => _runValidation(),
+                        decoration: InputDecoration(
+                          hintText: 'White',
+                          hintStyle: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.5),
+                          ),
+                          isDense: true,
+                          constraints: const BoxConstraints(
+                            minHeight: _inputCardsHeight,
+                            maxHeight: _inputCardsHeight,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                        ),
                       ),
-                    ),
-                    isDense: true,
-                    constraints: BoxConstraints(
-                      minHeight: _inputCardsHeight,
-                      maxHeight: _inputCardsHeight,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    enabledBorder: whiteInvalid
-                        ? OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.error,
-                            ),
-                          )
-                        : null,
-                    focusedBorder: whiteInvalid
-                        ? OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.error,
-                            ),
-                          )
-                        : null,
-                  ),
-                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: TextField(
-                  controller: move.black,
-                  onChanged: (_) => _runValidation(),
-                  style: blackInvalid
-                      ? TextStyle(color: theme.colorScheme.error)
-                      : null,
-                  decoration: InputDecoration(
-                    hintText: 'Black',
-                    hintStyle: TextStyle(
-                      color: theme.colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.5,
+                child: blackInvalid
+                    ? _InvalidMoveField(
+                        controller: move.black,
+                        hint: 'Black',
+                        getSuggestions: () {
+                          final allSans = _moves
+                              .expand(
+                                (m) => [
+                                  m.white.text.trim(),
+                                  m.black.text.trim(),
+                                ],
+                              )
+                              .toList();
+                          return suggestMoves(
+                            positionAtPly(allSans, blackPlyIndex),
+                            move.black.text.trim(),
+                          );
+                        },
+                        onSelected: _runValidation,
+                      )
+                    : TextField(
+                        controller: move.black,
+                        onChanged: (_) => _runValidation(),
+                        decoration: InputDecoration(
+                          hintText: 'Black',
+                          hintStyle: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.5),
+                          ),
+                          isDense: true,
+                          constraints: const BoxConstraints(
+                            minHeight: _inputCardsHeight,
+                            maxHeight: _inputCardsHeight,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                        ),
                       ),
-                    ),
-                    isDense: true,
-                    constraints: BoxConstraints(
-                      minHeight: _inputCardsHeight,
-                      maxHeight: _inputCardsHeight,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    enabledBorder: blackInvalid
-                        ? OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.error,
-                            ),
-                          )
-                        : null,
-                    focusedBorder: blackInvalid
-                        ? OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.error,
-                            ),
-                          )
-                        : null,
-                  ),
-                ),
               ),
               const SizedBox(width: 36),
             ],
@@ -319,6 +323,105 @@ class _ReviewScreenState extends State<ReviewScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _InvalidMoveField extends StatefulWidget {
+  const _InvalidMoveField({
+    required this.controller,
+    required this.hint,
+    required this.getSuggestions,
+    required this.onSelected,
+  });
+
+  final TextEditingController controller;
+  final String hint;
+  final List<String> Function() getSuggestions;
+  final VoidCallback onSelected;
+
+  @override
+  State<_InvalidMoveField> createState() => _InvalidMoveFieldState();
+}
+
+class _InvalidMoveFieldState extends State<_InvalidMoveField> {
+  final _key = GlobalKey();
+
+  Future<void> _showSuggestions() async {
+    final box = _key.currentContext!.findRenderObject()! as RenderBox;
+    final offset = box.localToGlobal(Offset.zero);
+    final size = box.size;
+    final screenSize = MediaQuery.of(context).size;
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx + 16,
+        offset.dy + size.height / 2,
+        screenSize.width,
+        screenSize.height - offset.dy - size.height / 2,
+      ),
+      items: widget
+          .getSuggestions()
+          .map(
+            (san) => PopupMenuItem<String>(
+              value: san,
+              height: 32,
+              child: Text(san, style: Theme.of(context).textTheme.bodyLarge),
+            ),
+          )
+          .toList(),
+    );
+    if (selected != null && mounted) {
+      widget.controller.text = selected;
+      widget.onSelected();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      key: _key,
+      child: TextField(
+        controller: widget.controller,
+        onChanged: (_) => widget.onSelected(),
+        style: TextStyle(color: theme.colorScheme.error),
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          hintStyle: TextStyle(
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+          isDense: true,
+          constraints: const BoxConstraints(minHeight: 30, maxHeight: 30),
+          contentPadding: const EdgeInsets.only(
+            left: 16,
+            top: 8,
+            bottom: 8,
+            right: 4,
+          ),
+          suffixIcon: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _showSuggestions,
+            child: Center(
+              child: Icon(
+                Icons.auto_awesome,
+                size: 14,
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+          suffixIconConstraints: const BoxConstraints(
+            maxHeight: 30,
+            maxWidth: 28,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: theme.colorScheme.error),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: theme.colorScheme.error),
+          ),
+        ),
       ),
     );
   }
