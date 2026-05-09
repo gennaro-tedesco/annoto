@@ -73,6 +73,17 @@ class _ReviewScreenState extends State<ReviewScreen> {
     }
   }
 
+  List<String> _suggestionsForPly(
+    int plyIndex,
+    TextEditingController controller,
+  ) {
+    final allSans = _moves
+        .expand((m) => [m.white.text.trim(), m.black.text.trim()])
+        .toList();
+    final position = positionAtPly(allSans, plyIndex);
+    return suggestMoves(position, controller.text.trim());
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -127,7 +138,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                                             .withValues(alpha: 0.5),
                                       ),
                                   isDense: true,
-                                  constraints: BoxConstraints(
+                                  constraints: const BoxConstraints(
                                     minHeight: _inputCardsHeight,
                                     maxHeight: _inputCardsHeight,
                                   ),
@@ -186,8 +197,144 @@ class _ReviewScreenState extends State<ReviewScreen> {
     );
   }
 
+  Widget _buildMoveField({
+    required int plyIndex,
+    required bool invalid,
+    required TextEditingController controller,
+    required String hintText,
+    required TextStyle hintStyle,
+  }) {
+    final theme = Theme.of(context);
+
+    if (!invalid) {
+      return TextField(
+        controller: controller,
+        onChanged: (_) => _runValidation(),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: hintStyle,
+          isDense: true,
+          constraints: const BoxConstraints(
+            minHeight: _inputCardsHeight,
+            maxHeight: _inputCardsHeight,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final suggestions = _suggestionsForPly(
+          plyIndex,
+          controller,
+        ).take(5).toList();
+
+        return MenuAnchor(
+          style: MenuStyle(
+            padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+            backgroundColor: WidgetStatePropertyAll(theme.colorScheme.surface),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(4),
+                  bottomRight: Radius.circular(4),
+                ),
+              ),
+            ),
+          ),
+          menuChildren: [
+            for (final san in suggestions)
+              SizedBox(
+                width: constraints.maxWidth,
+                height: _inputCardsHeight,
+                child: MenuItemButton(
+                  style: const ButtonStyle(
+                    padding: WidgetStatePropertyAll(EdgeInsets.zero),
+                  ),
+                  onPressed: () {
+                    controller.text = san;
+                    _runValidation();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 16, right: 16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(san, style: theme.textTheme.bodyLarge),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+          builder: (context, menuController, child) {
+            return Stack(
+              children: [
+                TextField(
+                  controller: controller,
+                  onChanged: (_) => _runValidation(),
+                  style: TextStyle(color: theme.colorScheme.error),
+                  decoration: InputDecoration(
+                    hintText: hintText,
+                    hintStyle: hintStyle,
+                    isDense: true,
+                    constraints: const BoxConstraints(
+                      minHeight: _inputCardsHeight,
+                      maxHeight: _inputCardsHeight,
+                    ),
+                    contentPadding: const EdgeInsets.only(
+                      left: 16,
+                      top: 8,
+                      bottom: 8,
+                      right: 28,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: theme.colorScheme.error),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: theme.colorScheme.error),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 28,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      if (suggestions.isEmpty) return;
+                      if (menuController.isOpen) {
+                        menuController.close();
+                      } else {
+                        menuController.open();
+                      }
+                    },
+                    child: Center(
+                      child: Icon(
+                        Icons.auto_awesome,
+                        size: 14,
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildMoveRow(BuildContext context, MovePair move, int index) {
     final theme = Theme.of(context);
+    final hintStyle = TextStyle(
+      color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+    );
     final whitePlyIndex = index * 2;
     final blackPlyIndex = index * 2 + 1;
     final whiteInvalid =
@@ -215,84 +362,22 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 ),
               ),
               Expanded(
-                child: TextField(
+                child: _buildMoveField(
+                  plyIndex: whitePlyIndex,
+                  invalid: whiteInvalid,
                   controller: move.white,
-                  onChanged: (_) => _runValidation(),
-                  style: whiteInvalid
-                      ? TextStyle(color: theme.colorScheme.error)
-                      : null,
-                  decoration: InputDecoration(
-                    hintText: 'White',
-                    hintStyle: TextStyle(
-                      color: theme.colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.5,
-                      ),
-                    ),
-                    isDense: true,
-                    constraints: BoxConstraints(
-                      minHeight: _inputCardsHeight,
-                      maxHeight: _inputCardsHeight,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    enabledBorder: whiteInvalid
-                        ? OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.error,
-                            ),
-                          )
-                        : null,
-                    focusedBorder: whiteInvalid
-                        ? OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.error,
-                            ),
-                          )
-                        : null,
-                  ),
+                  hintText: 'White',
+                  hintStyle: hintStyle,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: TextField(
+                child: _buildMoveField(
+                  plyIndex: blackPlyIndex,
+                  invalid: blackInvalid,
                   controller: move.black,
-                  onChanged: (_) => _runValidation(),
-                  style: blackInvalid
-                      ? TextStyle(color: theme.colorScheme.error)
-                      : null,
-                  decoration: InputDecoration(
-                    hintText: 'Black',
-                    hintStyle: TextStyle(
-                      color: theme.colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.5,
-                      ),
-                    ),
-                    isDense: true,
-                    constraints: BoxConstraints(
-                      minHeight: _inputCardsHeight,
-                      maxHeight: _inputCardsHeight,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    enabledBorder: blackInvalid
-                        ? OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.error,
-                            ),
-                          )
-                        : null,
-                    focusedBorder: blackInvalid
-                        ? OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: theme.colorScheme.error,
-                            ),
-                          )
-                        : null,
-                  ),
+                  hintText: 'Black',
+                  hintStyle: hintStyle,
                 ),
               ),
               const SizedBox(width: 36),
