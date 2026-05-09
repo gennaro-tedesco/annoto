@@ -269,11 +269,11 @@ class _EvalGraphPainter extends CustomPainter {
 
     canvas.drawPath(
       whiteFill,
-      Paint()..color = Colors.white.withValues(alpha: 0.35),
+      Paint()..color = Colors.white.withValues(alpha: 0.5),
     );
     canvas.drawPath(
       blackFill,
-      Paint()..color = Colors.black.withValues(alpha: 0.18),
+      Paint()..color = Colors.black.withValues(alpha: 0.5),
     );
 
     _drawPhaseDivisions(canvas, size, step);

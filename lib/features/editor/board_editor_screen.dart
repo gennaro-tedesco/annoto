@@ -576,11 +576,10 @@ class _BoardEditorScreenState extends State<BoardEditorScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '♚',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: side == Side.white ? Colors.white : Colors.black,
-                ),
+              PieceWidget(
+                piece: Piece(color: side, role: Role.king),
+                size: 28,
+                pieceAssets: _pieceSet.assets,
               ),
               const SizedBox(height: 4),
               _RadioDot(selected: active),
@@ -646,11 +645,10 @@ class _BoardEditorScreenState extends State<BoardEditorScreen> {
 
       return Row(
         children: [
-          Text(
-            '♚',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              color: side == Side.white ? Colors.white : Colors.black,
-            ),
+          PieceWidget(
+            piece: Piece(color: side, role: Role.king),
+            size: 28,
+            pieceAssets: _pieceSet.assets,
           ),
           const SizedBox(width: 8),
           castlingSelector('O-O', kingSide, toggleKingSide),
