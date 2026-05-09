@@ -29,49 +29,6 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   String _initialFullPgn = '';
   String _initialPgn = '';
   MovePair? _editingMove;
-  final Map<int, GlobalKey> _suggestionKeys = {};
-
-  GlobalKey _keyFor(int plyIndex) =>
-      _suggestionKeys.putIfAbsent(plyIndex, () => GlobalKey());
-
-  Future<void> _showSuggestions(
-    int plyIndex,
-    TextEditingController controller,
-  ) async {
-    final box =
-        _keyFor(plyIndex).currentContext!.findRenderObject()! as RenderBox;
-    final offset = box.localToGlobal(Offset.zero);
-    final size = box.size;
-    final screenSize = MediaQuery.of(context).size;
-    final allSans = _moves
-        .expand((m) => [m.white.text.trim(), m.black.text.trim()])
-        .toList();
-    final position = positionAtPly(allSans, plyIndex);
-    final suggestions = suggestMoves(position, controller.text.trim());
-
-    final selected = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(
-        offset.dx + 16,
-        offset.dy + size.height / 2,
-        screenSize.width,
-        screenSize.height - offset.dy - size.height / 2,
-      ),
-      items: suggestions
-          .map(
-            (san) => PopupMenuItem<String>(
-              value: san,
-              height: 32,
-              child: Text(san, style: Theme.of(context).textTheme.bodyLarge),
-            ),
-          )
-          .toList(),
-    );
-    if (selected != null && mounted) {
-      controller.text = selected;
-      _runValidation();
-    }
-  }
 
   static const double _inputCardsHeight = 30.0;
 
@@ -219,6 +176,17 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     }
   }
 
+  List<String> _suggestionsForPly(
+    int plyIndex,
+    TextEditingController controller,
+  ) {
+    final allSans = _moves
+        .expand((m) => [m.white.text.trim(), m.black.text.trim()])
+        .toList();
+    final position = positionAtPly(allSans, plyIndex);
+    return suggestMoves(position, controller.text.trim());
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -301,7 +269,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                                             .withValues(alpha: 0.5),
                                       ),
                                   isDense: true,
-                                  constraints: BoxConstraints(
+                                  constraints: const BoxConstraints(
                                     minHeight: _inputCardsHeight,
                                     maxHeight: _inputCardsHeight,
                                   ),
@@ -372,9 +340,146 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     );
   }
 
-  Widget _buildMoveRow(BuildContext context, MovePair move, int index) {
+  Widget _buildMoveField({
+    required MovePair move,
+    required int plyIndex,
+    required bool invalid,
+    required TextEditingController controller,
+    required FocusNode focusNode,
+    required String hintText,
+    required TextStyle hintStyle,
+  }) {
     final theme = Theme.of(context);
     final isEditing = _editingMove == move;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final suggestions = invalid
+            ? _suggestionsForPly(plyIndex, controller).take(5).toList()
+            : <String>[];
+
+        return MenuAnchor(
+          style: MenuStyle(
+            padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+            backgroundColor: WidgetStatePropertyAll(theme.colorScheme.surface),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(4),
+                  bottomRight: Radius.circular(4),
+                ),
+              ),
+            ),
+          ),
+          menuChildren: [
+            for (final san in suggestions)
+              SizedBox(
+                width: constraints.maxWidth,
+                height: _inputCardsHeight,
+                child: MenuItemButton(
+                  style: const ButtonStyle(
+                    padding: WidgetStatePropertyAll(EdgeInsets.zero),
+                  ),
+                  onPressed: () {
+                    controller.text = san;
+                    _runValidation();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 16, right: 16),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(san, style: theme.textTheme.bodyLarge),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+          builder: (context, menuController, child) {
+            return Stack(
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    setState(() => _editingMove = move);
+                    focusNode.requestFocus();
+                  },
+                  child: AbsorbPointer(
+                    absorbing: !isEditing,
+                    child: TextField(
+                      focusNode: focusNode,
+                      readOnly: !isEditing,
+                      controller: controller,
+                      onChanged: (_) => _runValidation(),
+                      style: invalid
+                          ? TextStyle(color: theme.colorScheme.error)
+                          : null,
+                      decoration: InputDecoration(
+                        hintText: hintText,
+                        hintStyle: hintStyle,
+                        isDense: true,
+                        constraints: const BoxConstraints(
+                          minHeight: _inputCardsHeight,
+                          maxHeight: _inputCardsHeight,
+                        ),
+                        contentPadding: EdgeInsets.only(
+                          left: 16,
+                          top: 8,
+                          bottom: 8,
+                          right: invalid ? 28 : 16,
+                        ),
+                        enabledBorder: invalid
+                            ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                            : null,
+                        focusedBorder: invalid
+                            ? OutlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: theme.colorScheme.error,
+                                ),
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                ),
+                if (invalid)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 28,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        if (suggestions.isEmpty) return;
+                        if (menuController.isOpen) {
+                          menuController.close();
+                        } else {
+                          menuController.open();
+                        }
+                      },
+                      child: Center(
+                        child: Icon(
+                          Icons.auto_awesome,
+                          size: 14,
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMoveRow(BuildContext context, MovePair move, int index) {
+    final theme = Theme.of(context);
     final hintStyle = TextStyle(
       color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
     );
@@ -434,150 +539,26 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                   ),
                 ),
                 Expanded(
-                  child: Stack(
-                    key: _keyFor(whitePlyIndex),
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          setState(() => _editingMove = move);
-                          move.whiteFocus.requestFocus();
-                        },
-                        child: AbsorbPointer(
-                          absorbing: !isEditing,
-                          child: TextField(
-                            focusNode: move.whiteFocus,
-                            readOnly: !isEditing,
-                            controller: move.white,
-                            onChanged: (_) => _runValidation(),
-                            style: whiteInvalid
-                                ? TextStyle(color: theme.colorScheme.error)
-                                : null,
-                            decoration: InputDecoration(
-                              hintText: 'White',
-                              hintStyle: hintStyle,
-                              isDense: true,
-                              constraints: BoxConstraints(
-                                minHeight: _inputCardsHeight,
-                                maxHeight: _inputCardsHeight,
-                              ),
-                              contentPadding: EdgeInsets.only(
-                                left: 16,
-                                top: 8,
-                                bottom: 8,
-                                right: whiteInvalid ? 28 : 16,
-                              ),
-                              enabledBorder: whiteInvalid
-                                  ? OutlineInputBorder(
-                                      borderSide: BorderSide(
-                                        color: theme.colorScheme.error,
-                                      ),
-                                    )
-                                  : null,
-                              focusedBorder: whiteInvalid
-                                  ? OutlineInputBorder(
-                                      borderSide: BorderSide(
-                                        color: theme.colorScheme.error,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (whiteInvalid)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          bottom: 0,
-                          width: 28,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () =>
-                                _showSuggestions(whitePlyIndex, move.white),
-                            child: Center(
-                              child: Icon(
-                                Icons.auto_awesome,
-                                size: 14,
-                                color: theme.colorScheme.error,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                  child: _buildMoveField(
+                    move: move,
+                    plyIndex: whitePlyIndex,
+                    invalid: whiteInvalid,
+                    controller: move.white,
+                    focusNode: move.whiteFocus,
+                    hintText: 'White',
+                    hintStyle: hintStyle,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Stack(
-                    key: _keyFor(blackPlyIndex),
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          setState(() => _editingMove = move);
-                          move.blackFocus.requestFocus();
-                        },
-                        child: AbsorbPointer(
-                          absorbing: !isEditing,
-                          child: TextField(
-                            focusNode: move.blackFocus,
-                            readOnly: !isEditing,
-                            controller: move.black,
-                            onChanged: (_) => _runValidation(),
-                            style: blackInvalid
-                                ? TextStyle(color: theme.colorScheme.error)
-                                : null,
-                            decoration: InputDecoration(
-                              hintText: 'Black',
-                              hintStyle: hintStyle,
-                              isDense: true,
-                              constraints: BoxConstraints(
-                                minHeight: _inputCardsHeight,
-                                maxHeight: _inputCardsHeight,
-                              ),
-                              contentPadding: EdgeInsets.only(
-                                left: 16,
-                                top: 8,
-                                bottom: 8,
-                                right: blackInvalid ? 28 : 16,
-                              ),
-                              enabledBorder: blackInvalid
-                                  ? OutlineInputBorder(
-                                      borderSide: BorderSide(
-                                        color: theme.colorScheme.error,
-                                      ),
-                                    )
-                                  : null,
-                              focusedBorder: blackInvalid
-                                  ? OutlineInputBorder(
-                                      borderSide: BorderSide(
-                                        color: theme.colorScheme.error,
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (blackInvalid)
-                        Positioned(
-                          right: 0,
-                          top: 0,
-                          bottom: 0,
-                          width: 28,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () =>
-                                _showSuggestions(blackPlyIndex, move.black),
-                            child: Center(
-                              child: Icon(
-                                Icons.auto_awesome,
-                                size: 14,
-                                color: theme.colorScheme.error,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                  child: _buildMoveField(
+                    move: move,
+                    plyIndex: blackPlyIndex,
+                    invalid: blackInvalid,
+                    controller: move.black,
+                    focusNode: move.blackFocus,
+                    hintText: 'Black',
+                    hintStyle: hintStyle,
                   ),
                 ),
                 const SizedBox(width: 36),
