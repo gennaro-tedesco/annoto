@@ -52,15 +52,20 @@
 
   <!-- ── DEMO ─────────────────────────────────────── -->
   <section id="demo">
-    <div class="demo-wrapper reveal">
-      <video class="demo-video" autoplay loop muted playsinline controls>
-        <source
-          src="https://github.com/gennaro-tedesco/annoto/releases/download/v0.9.1/Untitled.mov"
-          type="video/mp4" />
-        <source
-          src="https://github.com/gennaro-tedesco/annoto/releases/download/v0.9.1/Untitled.mov"
-          type="video/quicktime" />
-      </video>
+    <div class="demo-row">
+      <div class="demo-wrapper reveal">
+        <video class="demo-video" autoplay loop muted playsinline controls>
+          <source src="https://github.com/gennaro-tedesco/annoto/releases/download/v0.9.1/demo.mov"
+            type="video/mp4" />
+        </video>
+      </div>
+      <div class="demo-wrapper reveal">
+        <video class="demo-video" autoplay loop muted playsinline controls>
+          <source
+            src="https://github.com/gennaro-tedesco/annoto/releases/download/v0.9.1/auto_suggestions.mp4"
+            type="video/mp4" />
+        </video>
+      </div>
     </div>
   </section>
 
@@ -81,6 +86,7 @@
           <li>Hand-written OCR via cloud AI</li>
           <li>Import existing <code>.pgn</code> files</li>
           <li>Scoresheet validation to ensure correct transcription</li>
+          <li>Moves auto correction based on chess move similarity</li>
           <li>Share across chess apps</li>
         </ul>
       </div>
@@ -88,8 +94,8 @@
       <div class="feature-card reveal">
         <span class="feature-icon">⚙️</span>
         <h3>Engine analysis</h3>
-        <p>Connect any locally installed engine that exposes the OEX protocol and analyse your games
-          with the parameters you choose.</p>
+        <p>Connect any locally installed engine that exposes the OEX protocol: Stockfish, Lc0, Maia
+          and many more.</p>
         <ul class="feature-list">
           <li>Auto-detects OEX-compatible engines</li>
           <li>Configurable depth & multi-PV</li>

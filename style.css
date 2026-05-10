@@ -330,13 +330,26 @@ section {
   padding-bottom: 40px;
 }
 
+.demo-row {
+  display: flex;
+  gap: 16px;
+  max-width: 90%;
+  margin: 0 auto;
+}
+
 .demo-wrapper {
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--border);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
-  max-width: 70%;
+  max-width: 50%;
   margin: 0 auto;
+}
+
+.demo-row .demo-wrapper {
+  flex: 1;
+  max-width: none;
+  margin: 0;
 }
 
 .demo-video {
