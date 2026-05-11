@@ -2,6 +2,7 @@ import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/features/engine/engine_screen.dart';
 import 'package:annoto/features/home/home_screen.dart';
 import 'package:annoto/features/lichess/lichess_screen.dart';
+import 'package:annoto/features/puzzle/puzzle_home_screen.dart';
 import 'package:annoto/services/engine_service_scope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
@@ -17,10 +18,12 @@ class _AppTabShellState extends State<AppTabShell> {
   static const _homeTabIndex = 0;
   static const _engineTabIndex = 1;
   static const _lichessTabIndex = 2;
+  static const _puzzleTabIndex = 3;
   static const _tabHeight = AppControlSize.tabBar;
   static const _homeLabel = 'home';
   static const _engineLabel = 'engine';
   static const _lichessLabel = 'lichess';
+  static const _puzzleLabel = 'puzzle';
 
   int _selectedTabIndex = _homeTabIndex;
 
@@ -30,6 +33,7 @@ class _AppTabShellState extends State<AppTabShell> {
     const HomeScreen(),
     const _PlaceholderTabScreen(title: _engineLabel),
     LichessScreen(key: _lichessKey),
+    const PuzzleHomeScreen(),
   ];
 
   void _onDestinationSelected(int index) {
@@ -91,6 +95,16 @@ class _AppTabShellState extends State<AppTabShell> {
                   label: _lichessLabel,
                   selected: _selectedTabIndex == _lichessTabIndex,
                   onTap: () => _onDestinationSelected(_lichessTabIndex),
+                ),
+              ),
+              Expanded(
+                child: _buildTabButton(
+                  context,
+                  fillColor: fillColor,
+                  icon: LucideIcons.puzzle,
+                  label: _puzzleLabel,
+                  selected: _selectedTabIndex == _puzzleTabIndex,
+                  onTap: () => _onDestinationSelected(_puzzleTabIndex),
                 ),
               ),
             ],
