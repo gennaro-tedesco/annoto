@@ -6,6 +6,7 @@ import 'package:annoto/features/account/account_screen.dart';
 import 'package:annoto/features/board/board_screen.dart';
 import 'package:annoto/features/game_detail/game_detail_screen.dart';
 import 'package:annoto/features/provider/provider_screen.dart';
+import 'package:annoto/features/puzzle/puzzle_screen.dart';
 import 'package:annoto/features/review/review_screen.dart';
 import 'package:annoto/services/chess_engine_service.dart';
 import 'package:annoto/services/engine_service_scope.dart';
@@ -92,6 +93,7 @@ class _AnnotoAppState extends State<AnnotoApp> {
                 ReviewScreen.routeName: (_) => const ReviewScreen(),
                 GameDetailScreen.routeName: (_) => const GameDetailScreen(),
                 BoardScreen.routeName: (_) => const BoardScreen(),
+                PuzzleScreen.routeName: (_) => const PuzzleScreen(),
               },
             );
           },
