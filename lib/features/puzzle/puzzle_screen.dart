@@ -35,13 +35,12 @@ class _PuzzleScreenState extends State<PuzzleScreen>
     with SingleTickerProviderStateMixin {
   static const double _boardWidthFactor = 0.9;
   static const Duration _opponentReplyDelay = Duration(milliseconds: 500);
-  static const double _sideIndicatorSize = 10.0;
+  static const double _sideIndicatorSize = 28.0;
   static const double _selectorSidePadding = 8.0;
   static const double _boardSelectorsGap = 6.0;
   static const double _selectorGap = 4.0;
   static const double _engineGaugeHeight = AppControlSize.compact * 0.6;
   static const double _panelOutlineAlpha = 0.08;
-  static const double _enginePanelMaxHeight = 100.0;
   static const double _bottomNavBarVerticalPadding = 12.0;
   static const double _navButtonWidthFactor = 0.3;
   static const int _pvFoldDepth = 10;
@@ -602,6 +601,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
     return _solvingSide == Side.white ? PlayerSide.white : PlayerSide.black;
   }
 
+  bool get _showMoveNavButtons => _historyViewIndex >= 0;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -668,28 +669,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const ClampingScrollPhysics(),
-                    child: Column(
-                      children: [
-                        _buildBelowBoard(theme),
-                        _buildMoveNavButtons(theme),
-                        const SizedBox(height: _selectorGap),
-                        _buildSolutionLine(theme),
-                        if (_engineEnabled) ...[
-                          const SizedBox(height: _selectorGap),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(
-                              maxHeight: _enginePanelMaxHeight,
-                            ),
-                            child: _buildEvalPanel(theme),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
+                Expanded(child: _buildLowerPanel(theme)),
                 if (hasMultiple) _buildNavButtons(context, theme),
               ],
             );
@@ -748,31 +728,10 @@ class _PuzzleScreenState extends State<PuzzleScreen>
         Expanded(
           child: Column(
             children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      _buildMetadata(theme),
-                      const SizedBox(height: 8),
-                      _buildBelowBoard(theme),
-                      _buildMoveNavButtons(theme),
-                      const SizedBox(height: _selectorGap),
-                      _buildSolutionLine(theme),
-                      if (_engineEnabled) ...[
-                        const SizedBox(height: _selectorGap),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            maxHeight: _enginePanelMaxHeight,
-                          ),
-                          child: _buildEvalPanel(theme),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
+              const SizedBox(height: 8),
+              _buildMetadata(theme),
+              const SizedBox(height: 8),
+              Expanded(child: _buildLowerPanel(theme)),
               if (hasMultiple)
                 _buildNavButtons(context, theme, availableWidth: halfWidth - 1),
             ],
@@ -782,11 +741,61 @@ class _PuzzleScreenState extends State<PuzzleScreen>
     );
   }
 
+  Widget _buildLowerPanel(ThemeData theme) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final arrowsHeight = math.min(
+          constraints.maxHeight,
+          math.max(constraints.maxHeight * 0.2, kMinInteractiveDimension),
+        );
+        final remainingHeight = constraints.maxHeight - arrowsHeight;
+        final bottomGap = math.min(
+          constraints.maxHeight * 0.1,
+          remainingHeight,
+        );
+        final contentHeight = constraints.maxHeight - arrowsHeight - bottomGap;
+        return Column(
+          children: [
+            SizedBox(
+              height: contentHeight,
+              child: _engineEnabled
+                  ? _buildEvalPanel(theme)
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildBelowBoard(theme),
+                        const SizedBox(height: _selectorGap),
+                        _buildSolutionLine(theme),
+                      ],
+                    ),
+            ),
+            SizedBox(
+              height: arrowsHeight,
+              child: _showMoveNavButtons ? _buildMoveNavButtons(theme) : null,
+            ),
+            SizedBox(height: bottomGap),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildMetadata(ThemeData theme) {
-    final metadataColumn = Text(
-      _puzzle.type,
-      style: theme.textTheme.titleMedium,
-      textAlign: TextAlign.center,
+    final metadataColumn = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          _puzzle.type,
+          style: theme.textTheme.titleMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        PieceWidget(
+          piece: Piece(color: _solvingSide, role: Role.king),
+          size: _sideIndicatorSize,
+          pieceAssets: _pieceSet.assets,
+        ),
+      ],
     );
 
     if (_collection.puzzles.length <= 1) return metadataColumn;
@@ -1191,6 +1200,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
     return ColoredBox(
       color: panelColor,
       child: ListView(
+        primary: false,
+        reverse: false,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         children: [
           for (int i = 0; i < _evaluations.length; i++)
@@ -1289,6 +1300,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   }
 
   Widget _buildSolutionLine(ThemeData theme) {
+    if (_status == PuzzleStatus.solved) return const SizedBox.shrink();
+
     final spans = <InlineSpan>[];
     final count = _historyViewIndex >= 0 ? _moveHistory.length : 0;
     for (int i = 0; i < count; i++) {
@@ -1300,7 +1313,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
         spans.add(
           TextSpan(
             text: isWhite ? '${pos.fullmoves}. ' : '${pos.fullmoves}… ',
-            style: theme.textTheme.bodyMedium?.copyWith(
+            style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.outline,
             ),
           ),
@@ -1309,7 +1322,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
       spans.add(
         TextSpan(
           text: '${_toFigurine(san)} ',
-          style: theme.textTheme.bodyMedium?.copyWith(
+          style: theme.textTheme.bodyLarge?.copyWith(
             color: isCurrent ? theme.colorScheme.primary : null,
             fontWeight: isCurrent ? FontWeight.w600 : null,
           ),
@@ -1321,20 +1334,19 @@ class _PuzzleScreenState extends State<PuzzleScreen>
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: RichText(
-          text: TextSpan(style: theme.textTheme.bodyMedium, children: spans),
+          text: TextSpan(style: theme.textTheme.bodyLarge, children: spans),
         ),
       ),
     );
   }
 
   Widget _buildBelowBoard(ThemeData theme) {
-    final dotColor = _solvingSide == Side.white ? Colors.white : Colors.black;
     final Widget? status = _status == PuzzleStatus.solved
         ? Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('puzzle solved!', style: theme.textTheme.bodyMedium),
+              Text('puzzle solved!', style: theme.textTheme.bodyLarge),
               const SizedBox(width: 8),
               const Icon(
                 LucideIcons.chess_king,
@@ -1348,7 +1360,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('wrong move, try again', style: theme.textTheme.bodyMedium),
+              Text('wrong move, try again', style: theme.textTheme.bodyLarge),
               const SizedBox(width: 8),
               Transform.rotate(
                 angle: math.pi,
@@ -1363,7 +1375,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
         : _status == PuzzleStatus.failed && _historyViewIndex < 0
         ? Text(
             'puzzle error',
-            style: theme.textTheme.bodyMedium?.copyWith(
+            style: theme.textTheme.bodyLarge?.copyWith(
               color: theme.colorScheme.error,
             ),
           )
@@ -1373,17 +1385,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: _sideIndicatorSize,
-            height: _sideIndicatorSize,
-            decoration: BoxDecoration(
-              color: dotColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: theme.colorScheme.outline, width: 1),
-            ),
-          ),
           SizedBox(
-            height: 34,
+            height: 40,
             child: status == null
                 ? null
                 : Padding(
