@@ -43,7 +43,7 @@ class PuzzleCollection {
     final fen = game.headers['FEN'];
     if (fen == null || fen.isEmpty) return null;
 
-    final type = game.headers['White'] ?? '';
+    final type = game.headers['Event'] ?? '';
     final first = game.headers['Black'] ?? '';
 
     final Position startPos;
