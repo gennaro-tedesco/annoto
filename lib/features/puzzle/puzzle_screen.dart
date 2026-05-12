@@ -39,6 +39,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   static const double _selectorSidePadding = 8.0;
   static const double _boardSelectorsGap = 6.0;
   static const double _selectorGap = 4.0;
+  static const double _chapterRowExtent = 49.0;
+  static const int _chapterRowsBeforeSelected = 2;
   static const double _engineGaugeHeight = AppControlSize.compact * 0.6;
   static const double _panelOutlineAlpha = 0.08;
   static const double _bottomNavBarVerticalPadding = 12.0;
@@ -89,6 +91,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   bool _engineEnabled = false;
   List<EngineEvaluation> _evaluations = [];
   StreamSubscription<List<EngineEvaluation>>? _analysisSub;
+  ScrollController? _chapterScrollController;
   final _expandedPvs = <int>{};
   int _multiPv = 1;
 
@@ -130,6 +133,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   void dispose() {
     _pulseController.dispose();
     _analysisSub?.cancel();
+    _chapterScrollController?.dispose();
     if (_engineEnabled) _engine?.stopAnalysis();
     super.dispose();
   }
@@ -201,7 +205,18 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   }
 
   void _openChapterDrawer() {
-    _scaffoldKey.currentState?.openDrawer();
+    final offset = math.max(
+      0.0,
+      (_currentChapter - _chapterRowsBeforeSelected) * _chapterRowExtent,
+    );
+    _chapterScrollController?.dispose();
+    setState(() {
+      _chapterScrollController = ScrollController(initialScrollOffset: offset);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scaffoldKey.currentState?.openDrawer();
+    });
   }
 
   void _reset() {
@@ -890,6 +905,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
             Divider(color: theme.colorScheme.outlineVariant, height: 1),
             Expanded(
               child: ListView.separated(
+                controller: _chapterScrollController,
                 padding: const EdgeInsets.fromLTRB(0, 8, 0, 32),
                 itemCount: _collection.puzzles.length,
                 separatorBuilder: (_, _) =>
