@@ -799,7 +799,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
               child: _engineEnabled
                   ? _buildEvalPanel(theme)
                   : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.start,
                       children: [
                         _buildBelowBoard(theme),
                         const SizedBox(height: _selectorGap),
@@ -1419,6 +1419,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
             ),
           )
         : null;
+    if (status == null) return const SizedBox.shrink();
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -1426,12 +1428,10 @@ class _PuzzleScreenState extends State<PuzzleScreen>
         children: [
           SizedBox(
             height: 40,
-            child: status == null
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Center(child: status),
-                  ),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Center(child: status),
+            ),
           ),
         ],
       ),
