@@ -56,7 +56,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
 
   late final AnimationController _pulseController = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 800),
+    duration: const Duration(milliseconds: 400),
   );
 
   late PuzzleCollection _collection;
@@ -345,11 +345,34 @@ class _PuzzleScreenState extends State<PuzzleScreen>
 
     final expected = _solutionMoves[_currentMoveIndex];
     if (move.uci != expected) {
+      final previousPos = _position;
+      final generation = _puzzleGeneration;
+      final newPos = _position.play(move);
+      _positionHistory.add(newPos);
+      _moveHistory.add(move);
       setState(() {
+        _position = newPos;
+        _lastMove = move;
         _status = PuzzleStatus.wrongMove;
         _chapterResults[_currentChapter] = PuzzleStatus.failed;
       });
       _persistResults();
+      Future.delayed(_opponentReplyDelay, () {
+        if (!mounted ||
+            generation != _puzzleGeneration ||
+            _showingSolution ||
+            _position != newPos ||
+            _positionHistory.lastOrNull != newPos ||
+            _moveHistory.lastOrNull != move) {
+          return;
+        }
+        _positionHistory.removeLast();
+        _moveHistory.removeLast();
+        setState(() {
+          _position = previousPos;
+          _lastMove = _moveHistory.lastOrNull;
+        });
+      });
       return;
     }
 
