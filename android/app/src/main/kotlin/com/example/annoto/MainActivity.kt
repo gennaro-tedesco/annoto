@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
 import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -20,11 +21,68 @@ class MainActivity : FlutterActivity() {
     private val oexMethodChannel = "app/oex_engine"
     private val oexEventChannel = "app/oex_engine_output"
     private val foregroundServiceChannel = "app/foreground_service"
+    private val pgnIntentEventChannel = "app/pgn_intent"
 
     private val oexBridge by lazy { OexEngineBridge(this) }
+    private var pendingPgnContent: String? = null
+    private var pgnEventSink: EventChannel.EventSink? = null
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val content = extractPgnFromIntent(intent) ?: return
+        val sink = pgnEventSink
+        if (sink != null) {
+            sink.success(content)
+        } else {
+            pendingPgnContent = content
+        }
+    }
+
+    private fun extractPgnFromIntent(intent: Intent): String? {
+        return when (intent.action) {
+            Intent.ACTION_VIEW -> {
+                val uri = intent.data ?: return null
+                readUriContent(uri)
+            }
+            Intent.ACTION_SEND -> {
+                intent.getStringExtra(Intent.EXTRA_TEXT)
+            }
+            Intent.ACTION_PROCESS_TEXT -> {
+                intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+            }
+            else -> null
+        }
+    }
+
+    private fun readUriContent(uri: Uri): String? {
+        return try {
+            contentResolver.openInputStream(uri)?.use { stream ->
+                stream.bufferedReader(Charsets.UTF_8).readText()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        extractPgnFromIntent(intent)?.let { pendingPgnContent = it }
+
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, pgnIntentEventChannel)
+            .setStreamHandler(object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    pgnEventSink = events
+                    pendingPgnContent?.let { content ->
+                        events?.success(content)
+                        pendingPgnContent = null
+                    }
+                }
+                override fun onCancel(arguments: Any?) {
+                    pgnEventSink = null
+                }
+            })
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)

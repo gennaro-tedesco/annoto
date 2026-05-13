@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -17,6 +18,7 @@ import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/services/pgn_validator.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -73,6 +75,9 @@ class _HomeScreenState extends State<HomeScreen>
     LucideIcons.chess_rook,
   ];
 
+  static const _pgnIntentChannel = EventChannel('app/pgn_intent');
+  StreamSubscription<dynamic>? _pgnIntentSub;
+
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<Scoresheet> _scoresheets = [];
   _FilterData _filterData = _FilterData(
@@ -104,10 +109,16 @@ class _HomeScreenState extends State<HomeScreen>
       duration: const Duration(milliseconds: 400),
     );
     _loadScoresheets();
+    if (Platform.isAndroid) {
+      _pgnIntentSub = _pgnIntentChannel.receiveBroadcastStream().listen((pgn) {
+        if (pgn is String && mounted) _importPgnText(pgn);
+      });
+    }
   }
 
   @override
   void dispose() {
+    _pgnIntentSub?.cancel();
     _filterSpinController.dispose();
     super.dispose();
   }
@@ -183,6 +194,14 @@ class _HomeScreenState extends State<HomeScreen>
                 await _importPgn();
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.content_paste_outlined),
+              title: const Text('Import from clipboard'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                await _importFromClipboard();
+              },
+            ),
           ],
         ),
       ),
@@ -248,6 +267,23 @@ class _HomeScreenState extends State<HomeScreen>
     await _loadScoresheets();
   }
 
+  Future<void> _importPgnText(String content, {String? filename}) async {
+    final trimmed = content.trim();
+    final games = splitPgnGames(trimmed);
+    if (games.isEmpty) {
+      if (mounted)
+        NotificationService.showError('No valid games found in PGN file.');
+      return;
+    }
+    try {
+      await scoresheetRepository.save(trimmed, filename: filename);
+    } catch (_) {
+      if (mounted) NotificationService.showError('Failed to save PGN.');
+      return;
+    }
+    if (mounted) await _loadScoresheets();
+  }
+
   Future<void> _importPgn() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -270,19 +306,17 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) NotificationService.showError('Failed to read PGN file.');
       return;
     }
-    final games = splitPgnGames(content);
-    if (games.isEmpty) {
-      if (mounted)
-        NotificationService.showError('No valid games found in PGN file.');
+    await _importPgnText(content, filename: file.name);
+  }
+
+  Future<void> _importFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text == null || text.trim().isEmpty) {
+      if (mounted) NotificationService.showError('Clipboard is empty.');
       return;
     }
-    try {
-      await scoresheetRepository.save(content.trim(), filename: file.name);
-    } catch (_) {
-      if (mounted) NotificationService.showError('Failed to save PGN.');
-      return;
-    }
-    if (mounted) await _loadScoresheets();
+    await _importPgnText(text);
   }
 
   @override
