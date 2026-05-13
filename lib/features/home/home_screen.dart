@@ -110,8 +110,11 @@ class _HomeScreenState extends State<HomeScreen>
     );
     _loadScoresheets();
     if (Platform.isAndroid) {
-      _pgnIntentSub = _pgnIntentChannel.receiveBroadcastStream().listen((pgn) {
-        if (pgn is String && mounted) _importPgnText(pgn);
+      _pgnIntentSub = _pgnIntentChannel.receiveBroadcastStream().listen((data) {
+        if (data is! Map || !mounted) return;
+        final pgn = data['pgn'] as String?;
+        final filename = data['filename'] as String?;
+        if (pgn != null) _importPgnText(pgn, filename: filename);
       });
     }
   }
@@ -192,14 +195,6 @@ class _HomeScreenState extends State<HomeScreen>
               onTap: () async {
                 Navigator.pop(sheetContext);
                 await _importPgn();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.content_paste_outlined),
-              title: const Text('Import from clipboard'),
-              onTap: () async {
-                Navigator.pop(sheetContext);
-                await _importFromClipboard();
               },
             ),
           ],

@@ -24,35 +24,54 @@ class MainActivity : FlutterActivity() {
     private val pgnIntentEventChannel = "app/pgn_intent"
 
     private val oexBridge by lazy { OexEngineBridge(this) }
-    private var pendingPgnContent: String? = null
+    private var pendingPgnData: Map<String, String?>? = null
     private var pgnEventSink: EventChannel.EventSink? = null
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        val content = extractPgnFromIntent(intent) ?: return
+        val data = extractPgnFromIntent(intent) ?: return
         val sink = pgnEventSink
         if (sink != null) {
-            sink.success(content)
+            sink.success(data)
         } else {
-            pendingPgnContent = content
+            pendingPgnData = data
         }
     }
 
-    private fun extractPgnFromIntent(intent: Intent): String? {
+    private fun extractPgnFromIntent(intent: Intent): Map<String, String?>? {
         return when (intent.action) {
             Intent.ACTION_VIEW -> {
                 val uri = intent.data ?: return null
-                readUriContent(uri)
+                val content = readUriContent(uri) ?: return null
+                mapOf("pgn" to content, "filename" to getFilenameFromUri(uri))
             }
             Intent.ACTION_SEND -> {
-                intent.getStringExtra(Intent.EXTRA_TEXT)
+                val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return null
+                mapOf("pgn" to text, "filename" to null)
             }
             Intent.ACTION_PROCESS_TEXT -> {
-                intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+                val text = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString() ?: return null
+                mapOf("pgn" to text, "filename" to null)
             }
             else -> null
         }
+    }
+
+    private fun getFilenameFromUri(uri: Uri): String? {
+        if (uri.scheme == "content") {
+            try {
+                contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex >= 0) return cursor.getString(nameIndex)
+                    }
+                }
+            } catch (_: Exception) {
+                // fall through to lastPathSegment
+            }
+        }
+        return uri.lastPathSegment
     }
 
     private fun readUriContent(uri: Uri): String? {
@@ -68,15 +87,15 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        extractPgnFromIntent(intent)?.let { pendingPgnContent = it }
+        extractPgnFromIntent(intent)?.let { pendingPgnData = it }
 
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, pgnIntentEventChannel)
             .setStreamHandler(object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     pgnEventSink = events
-                    pendingPgnContent?.let { content ->
-                        events?.success(content)
-                        pendingPgnContent = null
+                    pendingPgnData?.let { data ->
+                        events?.success(data)
+                        pendingPgnData = null
                     }
                 }
                 override fun onCancel(arguments: Any?) {
