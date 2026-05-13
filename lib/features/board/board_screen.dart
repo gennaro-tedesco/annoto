@@ -57,7 +57,7 @@ class BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<BoardScreen> {
   static const double _boardWidthFactor = 0.9;
   static const double _engineBoardWidthFactor = 0.92;
-  static const Duration _engineAnimationDuration = Duration(milliseconds: 50);
+  static const Duration _engineAnimationDuration = Duration(milliseconds: 250);
   static const int _pvFoldDepth = 10;
   static const double _panelOutlineAlpha = 0.08;
   static const double _boardSelectorsGap = 6.0;
