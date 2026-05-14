@@ -54,7 +54,8 @@ class BoardScreen extends StatefulWidget {
   State<BoardScreen> createState() => _BoardScreenState();
 }
 
-class _BoardScreenState extends State<BoardScreen> {
+class _BoardScreenState extends State<BoardScreen>
+    with SingleTickerProviderStateMixin {
   static const double _boardWidthFactor = 0.9;
   static const double _engineBoardWidthFactor = 0.92;
   static const Duration _engineAnimationDuration = Duration(milliseconds: 250);
@@ -67,12 +68,24 @@ class _BoardScreenState extends State<BoardScreen> {
   static const double _engineGaugeHeight = AppControlSize.compact * 0.6;
   static const double _explorerBoardGap = 8.0;
   static const double _chapterDrawerMaxWidth = 320.0;
+  static const double _chapterFilterPanelWidth = 220.0;
   static const double _bottomNavBarVerticalPadding = 12.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _chapterFiltersOpen = false;
+  bool _chapterFiltersEnabled = true;
+  late final AnimationController _filterSpinController;
   final TextEditingController _chapterSearchController =
       TextEditingController();
+  final TextEditingController _filterWhite = TextEditingController();
+  final TextEditingController _filterBlack = TextEditingController();
+  final TextEditingController _filterYear = TextEditingController();
+  final TextEditingController _filterTournament = TextEditingController();
+  final TextEditingController _filterRound = TextEditingController();
+  final TextEditingController _filterEco = TextEditingController();
+  final TextEditingController _filterChapterName = TextEditingController();
   List<String> _games = [];
+  List<Map<String, String>> _gameTags = [];
   int _currentChapter = 0;
   late PgnGame<PgnNodeData> _game;
   final _positionMap = <PgnChildNode<PgnNodeData>, Position>{};
@@ -157,6 +170,15 @@ class _BoardScreenState extends State<BoardScreen> {
   bool get _onMainLine => _divergeIndex == _path.length;
 
   @override
+  void initState() {
+    super.initState();
+    _filterSpinController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialised) {
@@ -172,8 +194,10 @@ class _BoardScreenState extends State<BoardScreen> {
       } else {
         final scoresheet =
             ModalRoute.of(context)!.settings.arguments as Scoresheet;
-        _games = splitPgnGames(scoresheet.pgn);
+        _games = splitPgnGamesRaw(scoresheet.pgn);
         if (_games.isEmpty) _games = [scoresheet.pgn];
+        _gameTags = _games.map(extractFirstGameTagsRaw).toList();
+        _chapterFiltersEnabled = !scoresheet.id.startsWith('lichess_');
         _game = PgnGame.parsePgn(_games[0], initHeaders: PgnGame.emptyHeaders);
         _startingPosition = PgnGame.startingPosition(_game.headers);
         _buildMaps(_game.moves, _startingPosition);
@@ -271,7 +295,15 @@ class _BoardScreenState extends State<BoardScreen> {
     selectedEnginePackageNotifier.removeListener(_onEnginePackageChanged);
     keepAnalysisAliveNotifier.removeListener(_onKeepAnalysisAliveChanged);
     engineArrowsNotifier.removeListener(_onEngineArrowsChanged);
+    _filterSpinController.dispose();
     _chapterSearchController.dispose();
+    _filterWhite.dispose();
+    _filterBlack.dispose();
+    _filterYear.dispose();
+    _filterTournament.dispose();
+    _filterRound.dispose();
+    _filterEco.dispose();
+    _filterChapterName.dispose();
     _debounce?.cancel();
     _explorerDebounce?.cancel();
     openingExplorerService.cancel();
@@ -331,7 +363,6 @@ class _BoardScreenState extends State<BoardScreen> {
 
   void _loadChapter(int index) {
     if (index == _currentChapter) return;
-    _chapterSearchController.clear();
     _analysisSub?.cancel();
     _analysisSub = null;
     _engine.stopAnalysis();
@@ -363,93 +394,289 @@ class _BoardScreenState extends State<BoardScreen> {
     _buildGameAnalysisController();
   }
 
+  void _clearChapterFilters() {
+    _filterWhite.clear();
+    _filterBlack.clear();
+    _filterYear.clear();
+    _filterTournament.clear();
+    _filterRound.clear();
+    _filterEco.clear();
+    _filterChapterName.clear();
+  }
+
+  void _toggleChapterFilters() {
+    if (_chapterFiltersOpen) {
+      _filterSpinController.reverse(from: 1.0);
+    } else {
+      _filterSpinController.forward(from: 0.0);
+    }
+    setState(() => _chapterFiltersOpen = !_chapterFiltersOpen);
+  }
+
   void _openChapterDrawer() {
+    _clearChapterFilters();
     _chapterSearchController.clear();
+    _filterSpinController.reset();
+    setState(() => _chapterFiltersOpen = false);
     _scaffoldKey.currentState?.openDrawer();
+  }
+
+  bool _hasActiveChapterFilters() =>
+      _filterWhite.text.trim().isNotEmpty ||
+      _filterBlack.text.trim().isNotEmpty ||
+      _filterYear.text.trim().isNotEmpty ||
+      _filterTournament.text.trim().isNotEmpty ||
+      _filterRound.text.trim().isNotEmpty ||
+      _filterEco.text.trim().isNotEmpty ||
+      _filterChapterName.text.trim().isNotEmpty;
+
+  bool _matchesChapterFilters(int index) {
+    if (!_hasActiveChapterFilters()) return true;
+    final tags = index < _gameTags.length ? _gameTags[index] : const {};
+
+    bool matches(TextEditingController ctrl, String key) {
+      final q = ctrl.text.trim().toLowerCase();
+      if (q.isEmpty) return true;
+      return (tags[key] ?? '').toLowerCase().contains(q);
+    }
+
+    if (!matches(_filterWhite, 'White')) return false;
+    if (!matches(_filterBlack, 'Black')) return false;
+    if (!matches(_filterTournament, 'Event')) return false;
+    if (!matches(_filterRound, 'Round')) return false;
+    if (!matches(_filterEco, 'ECO')) return false;
+
+    final chapterNameQ = _filterChapterName.text.trim().toLowerCase();
+    if (chapterNameQ.isNotEmpty) {
+      final label = _chapterLabel(_games[index], index).toLowerCase();
+      if (!label.contains(chapterNameQ)) return false;
+    }
+
+    final yearQ = _filterYear.text.trim();
+    if (yearQ.isNotEmpty) {
+      final year = (tags['Date'] ?? '').split('.').first;
+      if (!year.contains(yearQ)) return false;
+    }
+
+    return true;
   }
 
   Widget _buildChapterDrawer(ThemeData theme) {
     final query = _chapterSearchController.text.trim().toLowerCase();
-    final chapterEntries = _games.asMap().entries.where((entry) {
-      if (query.isEmpty) return true;
-      return _chapterLabel(
-        entry.value,
-        entry.key,
-      ).toLowerCase().contains(query);
+    final chapterEntries = _games.asMap().entries.where((e) {
+      if (_chapterFiltersEnabled) return _matchesChapterFilters(e.key);
+      return query.isEmpty ||
+          _chapterLabel(e.value, e.key).toLowerCase().contains(query);
     }).toList();
+
+    final filterActive = _chapterFiltersOpen || _hasActiveChapterFilters();
+
+    final header = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.menu_book_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text('Chapters', style: theme.textTheme.titleMedium),
+            ],
+          ),
+        ),
+        const Spacer(),
+        if (_chapterFiltersEnabled)
+          Padding(
+            padding: const EdgeInsets.only(right: 8, top: 8, bottom: 0),
+            child: RotationTransition(
+              turns: _filterSpinController,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                iconSize: 18,
+                color: filterActive
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+                icon: const Icon(LucideIcons.sliders_horizontal),
+                onPressed: _toggleChapterFilters,
+              ),
+            ),
+          ),
+        if (_chapterFiltersOpen) ...[
+          VerticalDivider(
+            color: theme.colorScheme.outlineVariant,
+            width: 1,
+            indent: 8,
+            endIndent: 8,
+          ),
+          SizedBox(
+            width: _chapterFilterPanelWidth,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 16, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('Filter', style: theme.textTheme.titleMedium),
+                  ),
+                  TextButton(
+                    onPressed: _hasActiveChapterFilters()
+                        ? () {
+                            _clearChapterFilters();
+                            setState(() {});
+                          }
+                        : null,
+                    style: TextButton.styleFrom(
+                      textStyle: theme.textTheme.bodySmall,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    child: const Text('Clear'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final chapterList = Expanded(
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(0, 8, 0, 32),
+        itemCount: chapterEntries.length,
+        separatorBuilder: (_, _) =>
+            Divider(color: theme.colorScheme.outlineVariant, height: 1),
+        itemBuilder: (context, index) {
+          final entry = chapterEntries[index];
+          final chapterIndex = entry.key;
+          final selected = chapterIndex == _currentChapter;
+          return ListTile(
+            selected: selected,
+            title: Text(
+              _chapterLabel(entry.value, chapterIndex),
+              style: theme.textTheme.bodyMedium,
+            ),
+            onTap: () {
+              Navigator.of(context).pop();
+              _loadChapter(chapterIndex);
+            },
+          );
+        },
+      ),
+    );
 
     return Drawer(
       child: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.menu_book_outlined,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text('Chapters', style: theme.textTheme.titleMedium),
-                ],
-              ),
-            ),
+            header,
             Divider(color: theme.colorScheme.outlineVariant, height: 1),
             Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(0, 8, 0, 32),
-                itemCount: chapterEntries.length,
-                separatorBuilder: (_, _) =>
-                    Divider(color: theme.colorScheme.outlineVariant, height: 1),
-                itemBuilder: (context, index) {
-                  final entry = chapterEntries[index];
-                  final chapterIndex = entry.key;
-                  final selected = chapterIndex == _currentChapter;
-                  return ListTile(
-                    selected: selected,
-                    title: Text(
-                      _chapterLabel(entry.value, chapterIndex),
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      _loadChapter(chapterIndex);
-                    },
-                  );
-                },
-              ),
-            ),
-            Divider(color: theme.colorScheme.outlineVariant, height: 1),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: TextField(
-                controller: _chapterSearchController,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  hintText: 'Search chapter',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _chapterSearchController.text.isEmpty
-                      ? null
-                      : IconButton(
-                          onPressed: () {
-                            _chapterSearchController.clear();
-                            setState(() {});
-                          },
-                          icon: const Icon(Icons.close, size: 16),
+              child: _chapterFiltersOpen
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        chapterList,
+                        VerticalDivider(
+                          color: theme.colorScheme.outlineVariant,
+                          width: 1,
                         ),
+                        SizedBox(
+                          width: _chapterFilterPanelWidth,
+                          child: _buildChapterFilterPanel(theme),
+                        ),
+                      ],
+                    )
+                  : Column(children: [chapterList]),
+            ),
+            if (!_chapterFiltersEnabled) ...[
+              Divider(color: theme.colorScheme.outlineVariant, height: 1),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: TextField(
+                  controller: _chapterSearchController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Search chapter',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _chapterSearchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            onPressed: () {
+                              _chapterSearchController.clear();
+                              setState(() {});
+                            },
+                            icon: const Icon(Icons.close, size: 16),
+                          ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
 
+  Widget _buildChapterFilterPanel(ThemeData theme) {
+    final fields = [
+      ('White', _filterWhite),
+      ('Black', _filterBlack),
+      ('Year', _filterYear),
+      ('Tournament', _filterTournament),
+      ('Round', _filterRound),
+      ('ECO', _filterEco),
+      ('Chapter name', _filterChapterName),
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 32),
+      children: [
+        for (final (label, ctrl) in fields) ...[
+          const SizedBox(height: 10),
+          Text(
+            label,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          TextField(
+            controller: ctrl,
+            onChanged: (_) => setState(() {}),
+            style: theme.textTheme.bodySmall,
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
+              suffixIcon: ctrl.text.isEmpty
+                  ? null
+                  : IconButton(
+                      padding: EdgeInsets.zero,
+                      iconSize: 14,
+                      onPressed: () {
+                        ctrl.clear();
+                        setState(() {});
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   String _chapterLabel(String pgn, int index) {
-    final tags = parsePgnTags(pgn);
+    final tags = index < _gameTags.length
+        ? _gameTags[index]
+        : extractFirstGameTagsRaw(pgn);
     return _boardTitle(tags) ?? _boardSubtitle(tags) ?? 'Game ${index + 1}';
   }
 
@@ -1190,9 +1417,11 @@ class _BoardScreenState extends State<BoardScreen> {
       key: _scaffoldKey,
       drawer: _games.length > 1
           ? SizedBox(
-              width:
-                  (MediaQuery.sizeOf(context).width * _chapterDrawerWidthFactor)
-                      .clamp(0.0, _chapterDrawerMaxWidth),
+              width: _chapterFiltersOpen
+                  ? MediaQuery.sizeOf(context).width
+                  : (MediaQuery.sizeOf(context).width *
+                            _chapterDrawerWidthFactor)
+                        .clamp(0.0, _chapterDrawerMaxWidth),
               child: _buildChapterDrawer(theme),
             )
           : null,

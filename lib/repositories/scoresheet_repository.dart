@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/repositories/game_analysis_repository.dart';
 import 'package:path_provider/path_provider.dart';
@@ -45,7 +46,9 @@ class ScoresheetRepository {
       if (!await pgnFile.exists()) continue;
       try {
         final pgn = await pgnFile.readAsString();
-        scoresheets.add(Scoresheet.fromJson(entry, pgn));
+        final gameCount =
+            (entry['gameCount'] as int?) ?? splitPgnGamesRaw(pgn).length;
+        scoresheets.add(Scoresheet.fromJson(entry, pgn, gameCount));
       } catch (_) {
         continue;
       }
@@ -67,6 +70,7 @@ class ScoresheetRepository {
       filename: storedFilename,
       createdAt: now,
       pgn: pgn,
+      gameCount: splitPgnGamesRaw(pgn).length,
     );
     index.insert(0, entry.toJson());
     await _writeIndex(index);

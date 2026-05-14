@@ -176,3 +176,32 @@ List<String> splitPgnGames(String pgn) {
       .where((game) => game.isNotEmpty)
       .toList();
 }
+
+// Extracts tags from the first game's header block only via line scanning.
+// Does not invoke the PGN parser — safe to call on very large multi-game files.
+Map<String, String> extractFirstGameTagsRaw(String pgn) {
+  final tags = <String, String>{};
+  final tagLine = RegExp(r'^\[(\w+)\s+"([^"]*)"\]$');
+  for (final line in pgn.split('\n')) {
+    final trimmedLine = line.trim();
+    if (trimmedLine.isEmpty) break;
+    final m = tagLine.firstMatch(trimmedLine);
+    if (m != null) {
+      final value = m.group(2)!.trim();
+      if (value.isNotEmpty && value != '?') tags[m.group(1)!] = value;
+    }
+  }
+  return tags;
+}
+
+// Splits a multi-game PGN into individual game strings without parsing.
+// Each element is a raw PGN string suitable for PgnGame.parsePgn().
+List<String> splitPgnGamesRaw(String pgn) {
+  final normalized = pgn.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
+  if (normalized.isEmpty) return [];
+  return normalized
+      .split(RegExp(r'\n\n(?=\[)'))
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+}
