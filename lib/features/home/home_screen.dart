@@ -264,8 +264,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _importPgnText(String content, {String? filename}) async {
     final trimmed = content.trim();
-    final games = splitPgnGames(trimmed);
-    if (games.isEmpty) {
+    if (trimmed.isEmpty ||
+        (!trimmed.contains('[') && !RegExp(r'\d+\.').hasMatch(trimmed))) {
       if (mounted)
         NotificationService.showError('No valid games found in PGN file.');
       return;
@@ -747,9 +747,11 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildScoresheetCard(BuildContext context, Scoresheet scoresheet) {
     final theme = Theme.of(context);
-    final games = splitPgnGames(scoresheet.pgn);
-    final isCollection = games.length > 1;
-    final tags = _parsePgnTags(scoresheet.pgn);
+    final gameCount = scoresheet.gameCount;
+    final isCollection = gameCount > 1;
+    final tags = isCollection
+        ? const <String, String>{}
+        : extractFirstGameTagsRaw(scoresheet.pgn);
     final filenameLabel = scoresheet.filename.toLowerCase().endsWith('.pgn')
         ? scoresheet.filename.substring(0, scoresheet.filename.length - 4)
         : scoresheet.filename;
@@ -766,7 +768,7 @@ class _HomeScreenState extends State<HomeScreen>
       tags['Round'],
     ], ' - Game ');
     final eventRound = isCollection ? null : baseEventRound;
-    final invalid = _hasInvalidMoves(scoresheet.pgn);
+    final invalid = !isCollection && _hasInvalidMoves(scoresheet.pgn);
     final collectionStackInset =
         _collectionStackOffset * _collectionStackLayerCount;
     final collectionLayerColor = theme.colorScheme.surfaceContainerHighest
@@ -839,7 +841,7 @@ class _HomeScreenState extends State<HomeScreen>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              '${games.length}',
+                              '$gameCount',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: collectionChipColor,
                               ),
@@ -900,11 +902,6 @@ class _HomeScreenState extends State<HomeScreen>
     return hasInvalidPgnMoves(pgn);
   }
 
-  Map<String, String> _parsePgnTags(String pgn) {
-    final firstGame = splitPgnGames(pgn).firstOrNull ?? pgn;
-    return parsePgnTags(firstGame);
-  }
-
   _FilterData _buildFilterData() {
     final tagsById = <String, Map<String, String>>{};
     final tournaments = <String>{};
@@ -912,7 +909,8 @@ class _HomeScreenState extends State<HomeScreen>
     final whitePlayers = <String>{};
     final blackPlayers = <String>{};
     for (final scoresheet in _scoresheets) {
-      final tags = _parsePgnTags(scoresheet.pgn);
+      if (scoresheet.gameCount > 1) continue;
+      final tags = extractFirstGameTagsRaw(scoresheet.pgn);
       tagsById[scoresheet.id] = tags;
       _addFilterValue(tournaments, tags['Event']);
       _addFilterValue(rounds, tags['Round']);

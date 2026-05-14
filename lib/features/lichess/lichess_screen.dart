@@ -72,6 +72,7 @@ class LichessScreenState extends State<LichessScreen> {
           filename: '${study.name}.pgn',
           createdAt: DateTime.now(),
           pgn: pgn,
+          gameCount: splitPgnGamesRaw(pgn).length,
         ),
       );
     } catch (e) {
@@ -263,11 +264,11 @@ class _StudyCardState extends State<_StudyCard> {
   Future<void> _loadChapterCount() async {
     try {
       final pgn = await lichessService.exportStudyPgn(widget.study.id);
-      final games = splitPgnGames(pgn);
+      final count = splitPgnGamesRaw(pgn).length;
       if (mounted) {
         setState(() {
           _cachedPgn = pgn;
-          _chapterCount = games.isEmpty ? 1 : games.length;
+          _chapterCount = count == 0 ? 1 : count;
         });
       }
     } catch (_) {
