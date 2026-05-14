@@ -32,6 +32,7 @@ All public exports go through `lib/chessground.dart`. Internal implementation li
 ### Core Data Flow
 
 The board is driven by immutable data objects:
+
 - **`GameData`** — Holds game state (side to move, valid moves, premove state) and callbacks (`onMove`, `onPremove`). Any game state change requires creating a new `GameData` instance.
 - **`ChessboardSettings`** — All visual and behavioral configuration (theme, animations, piece shift method, draw shapes, coordinates, etc.).
 - **`Pieces`** (`Map<Square, Piece>`) — Board position, typically derived from FEN via `readFen()`.
@@ -53,3 +54,9 @@ The board is driven by immutable data objects:
 - Immutable data classes with `@immutable`, `copyWith()`, manual `==`/`hashCode`
 - Single quotes for strings (enforced by linter)
 - Linting via `package:lint/package.yaml` with all strict modes enabled
+
+## Agentic behaviour
+
+- do not run sub-agents unless stricly necessary
+- prefer `fd` to `find`
+- when asked to find a specific part of the codebase, use `ls` + `grep`, resort to `fd` only as ultima ratio.

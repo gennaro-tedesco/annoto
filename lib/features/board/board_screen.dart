@@ -68,7 +68,6 @@ class _BoardScreenState extends State<BoardScreen>
   static const double _engineGaugeHeight = AppControlSize.compact * 0.6;
   static const double _explorerBoardGap = 8.0;
   static const double _chapterDrawerMaxWidth = 320.0;
-  static const double _chapterFilterPanelWidth = 220.0;
   static const double _bottomNavBarVerticalPadding = 12.0;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -84,6 +83,7 @@ class _BoardScreenState extends State<BoardScreen>
   final TextEditingController _filterRound = TextEditingController();
   final TextEditingController _filterEco = TextEditingController();
   final TextEditingController _filterChapterName = TextEditingController();
+  String? _filterResult;
   List<String> _games = [];
   List<Map<String, String>> _gameTags = [];
   int _currentChapter = 0;
@@ -402,6 +402,7 @@ class _BoardScreenState extends State<BoardScreen>
     _filterRound.clear();
     _filterEco.clear();
     _filterChapterName.clear();
+    _filterResult = null;
   }
 
   void _toggleChapterFilters() {
@@ -428,7 +429,8 @@ class _BoardScreenState extends State<BoardScreen>
       _filterTournament.text.trim().isNotEmpty ||
       _filterRound.text.trim().isNotEmpty ||
       _filterEco.text.trim().isNotEmpty ||
-      _filterChapterName.text.trim().isNotEmpty;
+      _filterChapterName.text.trim().isNotEmpty ||
+      _filterResult != null;
 
   bool _matchesChapterFilters(int index) {
     if (!_hasActiveChapterFilters()) return true;
@@ -446,6 +448,10 @@ class _BoardScreenState extends State<BoardScreen>
     if (!matches(_filterRound, 'Round')) return false;
     if (!matches(_filterEco, 'ECO')) return false;
 
+    if (_filterResult != null && (tags['Result'] ?? '') != _filterResult) {
+      return false;
+    }
+
     final chapterNameQ = _filterChapterName.text.trim().toLowerCase();
     if (chapterNameQ.isNotEmpty) {
       final label = _chapterLabel(_games[index], index).toLowerCase();
@@ -462,6 +468,14 @@ class _BoardScreenState extends State<BoardScreen>
   }
 
   Widget _buildChapterDrawer(ThemeData theme) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final chapterPanelWidth = (screenWidth * _chapterDrawerWidthFactor).clamp(
+      0.0,
+      _chapterDrawerMaxWidth,
+    );
+    final filterPanelWidth = chapterPanelWidth < screenWidth * 0.5
+        ? chapterPanelWidth
+        : screenWidth * 0.5;
     final query = _chapterSearchController.text.trim().toLowerCase();
     final chapterEntries = _games.asMap().entries.where((e) {
       if (_chapterFiltersEnabled) return _matchesChapterFilters(e.key);
@@ -514,7 +528,7 @@ class _BoardScreenState extends State<BoardScreen>
             endIndent: 8,
           ),
           SizedBox(
-            width: _chapterFilterPanelWidth,
+            width: filterPanelWidth,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 16, 8, 8),
               child: Row(
@@ -586,7 +600,7 @@ class _BoardScreenState extends State<BoardScreen>
                           width: 1,
                         ),
                         SizedBox(
-                          width: _chapterFilterPanelWidth,
+                          width: filterPanelWidth,
                           child: _buildChapterFilterPanel(theme),
                         ),
                       ],
@@ -669,6 +683,36 @@ class _BoardScreenState extends State<BoardScreen>
             ),
           ),
         ],
+        const SizedBox(height: 10),
+        Text(
+          'Result',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 6),
+        SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(value: '1-0', label: Text('1-0', softWrap: false)),
+            ButtonSegment(value: '0-1', label: Text('0-1', softWrap: false)),
+            ButtonSegment(
+              value: '1/2-1/2',
+              label: Text('½-½', softWrap: false),
+            ),
+          ],
+          selected: _filterResult != null ? {_filterResult!} : {},
+          emptySelectionAllowed: true,
+          showSelectedIcon: false,
+          onSelectionChanged: (selection) {
+            setState(
+              () => _filterResult = selection.isEmpty ? null : selection.first,
+            );
+          },
+          style: ButtonStyle(
+            textStyle: WidgetStateProperty.all(theme.textTheme.bodySmall),
+            visualDensity: VisualDensity.compact,
+          ),
+        ),
       ],
     );
   }
@@ -1405,6 +1449,11 @@ class _BoardScreenState extends State<BoardScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final chapterPanelWidth = (screenWidth * _chapterDrawerWidthFactor).clamp(
+      0.0,
+      _chapterDrawerMaxWidth,
+    );
     final fillColor =
         theme.inputDecorationTheme.fillColor ??
         theme.colorScheme.surfaceContainerHighest;
@@ -1418,10 +1467,10 @@ class _BoardScreenState extends State<BoardScreen>
       drawer: _games.length > 1
           ? SizedBox(
               width: _chapterFiltersOpen
-                  ? MediaQuery.sizeOf(context).width
-                  : (MediaQuery.sizeOf(context).width *
-                            _chapterDrawerWidthFactor)
-                        .clamp(0.0, _chapterDrawerMaxWidth),
+                  ? (chapterPanelWidth < screenWidth * 0.5
+                        ? chapterPanelWidth * 2
+                        : screenWidth)
+                  : chapterPanelWidth,
               child: _buildChapterDrawer(theme),
             )
           : null,
