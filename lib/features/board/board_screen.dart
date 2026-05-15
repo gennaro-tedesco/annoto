@@ -8,6 +8,7 @@ import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/features/settings/engine_settings_screen.dart';
 import 'package:annoto/repositories/game_analysis_repository.dart';
+import 'package:annoto/repositories/scoresheet_repository.dart';
 import 'package:annoto/services/chess_engine_service.dart';
 import 'package:annoto/services/engine_service_scope.dart';
 import 'package:annoto/services/game_analysis_controller.dart';
@@ -84,6 +85,7 @@ class _BoardScreenState extends State<BoardScreen>
   final TextEditingController _filterEco = TextEditingController();
   final TextEditingController _filterChapterName = TextEditingController();
   String? _filterResult;
+  bool _didBookmark = false;
   List<String> _games = [];
   List<Map<String, String>> _gameTags = [];
   int _currentChapter = 0;
@@ -420,6 +422,18 @@ class _BoardScreenState extends State<BoardScreen>
     _filterSpinController.reset();
     setState(() => _chapterFiltersOpen = false);
     _scaffoldKey.currentState?.openDrawer();
+  }
+
+  Future<void> _bookmarkChapter() async {
+    final pgn = _games[_currentChapter];
+    final scoresheet =
+        ModalRoute.of(context)?.settings.arguments as Scoresheet?;
+    try {
+      await scoresheetRepository.save(pgn, filename: scoresheet?.filename);
+      _didBookmark = true;
+    } catch (_) {
+      if (mounted) NotificationService.showError('Failed to save chapter');
+    }
   }
 
   bool _hasActiveChapterFilters() =>
@@ -1547,7 +1561,7 @@ class _BoardScreenState extends State<BoardScreen>
           child: Row(
             children: [
               IconButton.filled(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => Navigator.of(context).pop(_didBookmark),
                 style: IconButton.styleFrom(
                   backgroundColor: fillColor,
                   foregroundColor: theme.colorScheme.onSurface,
@@ -1586,7 +1600,17 @@ class _BoardScreenState extends State<BoardScreen>
                       },
               ),
               const Spacer(),
-              const SizedBox(width: 48),
+              if (_games.length > 1)
+                IconButton.filled(
+                  onPressed: _bookmarkChapter,
+                  style: IconButton.styleFrom(
+                    backgroundColor: fillColor,
+                    foregroundColor: theme.colorScheme.onSurface,
+                  ),
+                  icon: const Icon(Icons.star_outline, size: 22),
+                )
+              else
+                const SizedBox(width: 48),
             ],
           ),
         ),

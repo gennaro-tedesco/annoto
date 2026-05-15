@@ -799,11 +799,12 @@ class _HomeScreenState extends State<HomeScreen>
           Card(
             margin: EdgeInsets.zero,
             child: InkWell(
-              onTap: () {
+              onTap: () async {
                 if (!invalid) {
-                  Navigator.of(
+                  final bookmarked = await Navigator.of(
                     context,
                   ).pushNamed(BoardScreen.routeName, arguments: scoresheet);
+                  if (bookmarked == true && mounted) await _loadScoresheets();
                 } else {
                   NotificationService.showError('Invalid PGN');
                 }

@@ -16,6 +16,9 @@ When working on this project:
 1. Keep project structure clean and predictable
 1. Avoid introducing unnecessary backend or cloud complexity unless explicitly requested
 1. Never perform changes that are not explicitly requested and approved by the instructor
+1. do not run sub-agents unless stricly necessary
+1. prefer `fd` to `find`
+1. when asked to find a specific part of the codebase, use `ls` + `grep`, resort to `fd` only as ultima ratio.
 
 ## Definition of done
 
@@ -28,6 +31,8 @@ A task is complete only if:
 - you have explicitly validated that the current UX and features have not changed unless explicitly requested. New code must never change current UX behaviour nor features.
 
 ## Core Rules
+
+The purpose of a task is to fulfil requirements, not to write code for the sake of it. The code is a mean to an end: only write code when explicitly requested to do so.
 
 ### 1. Literal Obedience
 
