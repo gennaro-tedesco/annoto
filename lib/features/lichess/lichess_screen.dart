@@ -3,7 +3,6 @@ import 'dart:math';
 
 import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/features/board/board_screen.dart';
-import 'package:annoto/features/settings/settings_screen.dart';
 import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/services/lichess_service.dart';
@@ -36,9 +35,10 @@ class LichessScreen extends StatefulWidget {
 }
 
 class LichessScreenState extends State<LichessScreen> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late Future<List<LichessStudy>> _studiesFuture;
   late final List<IconData> _titleIcons;
+  final TextEditingController _searchController = TextEditingController();
+  bool _searchActive = false;
 
   @override
   void initState() {
@@ -47,12 +47,19 @@ class LichessScreenState extends State<LichessScreen> {
     _titleIcons = List<IconData>.from(_chessIcons)..shuffle(Random());
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   void refresh() => setState(() {
     _studiesFuture = lichessService.getStudies();
   });
 
-  void _openSettings() {
-    _scaffoldKey.currentState?.openEndDrawer();
+  void _dismissSearch() {
+    _searchController.clear();
+    setState(() => _searchActive = false);
   }
 
   Future<void> _openStudy(
@@ -93,11 +100,6 @@ class LichessScreenState extends State<LichessScreen> {
         final listHeight = constraints.maxHeight - appBarHeight - tabBarHeight;
 
         return Scaffold(
-          key: _scaffoldKey,
-          endDrawer: SizedBox(
-            width: (MediaQuery.sizeOf(context).width * 0.7).clamp(0.0, 320.0),
-            child: const Drawer(child: SettingsScreen()),
-          ),
           body: Column(
             children: [
               Material(
@@ -111,42 +113,88 @@ class LichessScreenState extends State<LichessScreen> {
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              for (int i = 0; i < _titleIcons.length; i++) ...[
-                                Icon(
-                                  _titleIcons[i],
-                                  size: _titleIconSize,
-                                  color: theme.colorScheme.primary,
+                          if (_searchActive)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Padding(
+                                padding: const EdgeInsets.only(left: 48),
+                                child: FractionallySizedBox(
+                                  widthFactor: 0.5,
+                                  child: TextField(
+                                    controller: _searchController,
+                                    autofocus: true,
+                                    onChanged: (_) => setState(() {}),
+                                    decoration: InputDecoration(
+                                      hintText: 'Search study',
+                                      prefixIcon: const Icon(Icons.search),
+                                      suffixIcon: _searchController.text.isEmpty
+                                          ? null
+                                          : IconButton(
+                                              onPressed: () {
+                                                _searchController.clear();
+                                                setState(() {});
+                                              },
+                                              icon: const Icon(
+                                                Icons.close,
+                                                size: 16,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
                                 ),
-                                if (i < _titleIcons.length - 1)
-                                  const SizedBox(width: _titleIconSpacing),
-                              ],
-                            ],
-                          ),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: IconTheme.merge(
-                              data:
-                                  theme.appBarTheme.actionsIconTheme ??
-                                  const IconThemeData(),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.refresh),
-                                    tooltip: 'Refresh',
-                                    onPressed: refresh,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.settings_outlined),
-                                    tooltip: 'Settings',
-                                    onPressed: _openSettings,
-                                  ),
-                                  const SizedBox(width: 4),
-                                ],
                               ),
+                            )
+                          else
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                for (
+                                  int i = 0;
+                                  i < _titleIcons.length;
+                                  i++
+                                ) ...[
+                                  Icon(
+                                    _titleIcons[i],
+                                    size: _titleIconSize,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  if (i < _titleIcons.length - 1)
+                                    const SizedBox(width: _titleIconSpacing),
+                                ],
+                              ],
+                            ),
+                          IconTheme.merge(
+                            data:
+                                theme.appBarTheme.actionsIconTheme ??
+                                const IconThemeData(),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _searchActive
+                                    ? IconButton(
+                                        icon: const Icon(Icons.close),
+                                        tooltip: 'Dismiss search',
+                                        onPressed: _dismissSearch,
+                                      )
+                                    : IconButton(
+                                        icon: const Icon(Icons.search),
+                                        tooltip: 'Search',
+                                        onPressed: () => setState(
+                                          () => _searchActive = true,
+                                        ),
+                                      ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.refresh),
+                                      tooltip: 'Refresh',
+                                      onPressed: refresh,
+                                    ),
+                                    const SizedBox(width: 4),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -202,7 +250,14 @@ class LichessScreenState extends State<LichessScreen> {
                       );
                     }
 
-                    final studies = snapshot.data ?? [];
+                    final query = _searchController.text.trim().toLowerCase();
+                    final studies = (snapshot.data ?? [])
+                        .where(
+                          (s) =>
+                              query.isEmpty ||
+                              s.name.toLowerCase().contains(query),
+                        )
+                        .toList();
 
                     if (studies.isEmpty) {
                       return Center(
@@ -223,6 +278,7 @@ class LichessScreenState extends State<LichessScreen> {
                             bottom: _listItemSpacing,
                           ),
                           child: _StudyCard(
+                            key: ValueKey(study.id),
                             study: study,
                             onTap: (cachedPgn) =>
                                 _openStudy(context, study, cachedPgn),
@@ -242,7 +298,7 @@ class LichessScreenState extends State<LichessScreen> {
 }
 
 class _StudyCard extends StatefulWidget {
-  const _StudyCard({required this.study, required this.onTap});
+  const _StudyCard({super.key, required this.study, required this.onTap});
 
   final LichessStudy study;
   final void Function(String? cachedPgn) onTap;
