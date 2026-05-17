@@ -23,8 +23,10 @@ import 'package:annoto/widgets/opening_explorer_panel.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const _annotationColors = <CommentShapeColor, Color>{
   CommentShapeColor.green: Color(0xAA4CAF50),
@@ -104,6 +106,7 @@ class _BoardScreenState extends State<BoardScreen>
   final _moveScrollController = ScrollController();
   final _verticalMoveScrollController = ScrollController();
   final _moveTileKeys = <PgnChildNode<PgnNodeData>, GlobalKey>{};
+  final _commentRecognizers = <TapGestureRecognizer>[];
   late final ChessEngineService _engine;
   late final bool _ownsEngine;
   Timer? _debounce;
@@ -314,6 +317,7 @@ class _BoardScreenState extends State<BoardScreen>
     _verticalMoveScrollController.dispose();
     _engine.stopAnalysis();
     if (_ownsEngine) _engine.dispose();
+    for (final r in _commentRecognizers) r.dispose();
     _gameAnalysis?.progress.removeListener(_onAnalysisProgressChanged);
     _gameAnalysis?.dispose();
     _stopForegroundServiceIfActive();
@@ -354,6 +358,21 @@ class _BoardScreenState extends State<BoardScreen>
       boards.add(pos.board);
     }
     return boards;
+  }
+
+  void _resetMoves() {
+    _game.moves.children.clear();
+    _positionMap.clear();
+    _moveMap.clear();
+    _parentMap.clear();
+    _moveTileKeys.clear();
+    setState(() {
+      _path = [];
+      _promotionMove = null;
+      _evaluations = [];
+      _expandedPvs.clear();
+      _gameDivision = divideGame(_mainlineBoards());
+    });
   }
 
   void _navigateToPly(int ply) {
@@ -1609,6 +1628,16 @@ class _BoardScreenState extends State<BoardScreen>
                   ),
                   icon: const Icon(Icons.star_outline, size: 22),
                 )
+              else if (widget.engineMode)
+                IconButton.filled(
+                  onPressed: _resetMoves,
+                  style: IconButton.styleFrom(
+                    backgroundColor: fillColor,
+                    foregroundColor: theme.colorScheme.onSurface,
+                  ),
+                  tooltip: 'Reset board',
+                  icon: const Icon(Icons.refresh, size: 22),
+                )
               else
                 const SizedBox(width: 48),
             ],
@@ -2850,14 +2879,10 @@ class _BoardScreenState extends State<BoardScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: comments
                         .map(
-                          (comment) => Padding(
+                          (comment) => _linkifiedComment(
+                            theme,
+                            comment,
                             padding: const EdgeInsets.only(bottom: 2),
-                            child: Text(
-                              comment,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
                           ),
                         )
                         .toList(),
@@ -2870,20 +2895,50 @@ class _BoardScreenState extends State<BoardScreen>
     );
   }
 
+  static final _urlRegex = RegExp(r'https?://\S+', caseSensitive: false);
+
+  Widget _linkifiedComment(
+    ThemeData theme,
+    String comment, {
+    EdgeInsets padding = const EdgeInsets.only(right: 4),
+  }) {
+    final baseStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final linkStyle = baseStyle?.copyWith(
+      color: theme.colorScheme.primary,
+      decoration: TextDecoration.underline,
+      decorationColor: theme.colorScheme.primary,
+    );
+    final spans = <InlineSpan>[];
+    int last = 0;
+    for (final match in _urlRegex.allMatches(comment)) {
+      if (match.start > last) {
+        spans.add(TextSpan(text: comment.substring(last, match.start)));
+      }
+      final url = match.group(0)!;
+      final recognizer = TapGestureRecognizer()
+        ..onTap = () =>
+            launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      _commentRecognizers.add(recognizer);
+      spans.add(TextSpan(text: url, style: linkStyle, recognizer: recognizer));
+      last = match.end;
+    }
+    if (last < comment.length) {
+      spans.add(TextSpan(text: comment.substring(last)));
+    }
+    return Padding(
+      padding: padding,
+      child: RichText(
+        text: TextSpan(style: baseStyle, children: spans),
+      ),
+    );
+  }
+
   List<Widget> _commentTokens(ThemeData theme, List<String>? comments) {
-    return displayPgnCommentTexts(comments)
-        .map(
-          (comment) => Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: Text(
-              comment,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-        )
-        .toList();
+    return displayPgnCommentTexts(
+      comments,
+    ).map((comment) => _linkifiedComment(theme, comment)).toList();
   }
 
   Widget _moveTile(
