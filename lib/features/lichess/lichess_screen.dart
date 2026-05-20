@@ -34,22 +34,35 @@ class LichessScreen extends StatefulWidget {
   State<LichessScreen> createState() => LichessScreenState();
 }
 
-class LichessScreenState extends State<LichessScreen> {
+class LichessScreenState extends State<LichessScreen>
+    with SingleTickerProviderStateMixin {
   late Future<List<LichessStudy>> _studiesFuture;
   late final List<IconData> _titleIcons;
   final TextEditingController _searchController = TextEditingController();
   bool _searchActive = false;
+  late final AnimationController _searchAnimController;
+  late final CurvedAnimation _searchCurvedAnimation;
 
   @override
   void initState() {
     super.initState();
     _studiesFuture = lichessService.getStudies();
     _titleIcons = List<IconData>.from(_chessIcons)..shuffle(Random());
+    _searchAnimController = AnimationController(
+      duration: const Duration(milliseconds: 250),
+      vsync: this,
+    );
+    _searchCurvedAnimation = CurvedAnimation(
+      parent: _searchAnimController,
+      curve: Curves.easeOut,
+    );
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchCurvedAnimation.dispose();
+    _searchAnimController.dispose();
     super.dispose();
   }
 
@@ -57,9 +70,16 @@ class LichessScreenState extends State<LichessScreen> {
     _studiesFuture = lichessService.getStudies();
   });
 
+  void _activateSearch() {
+    setState(() => _searchActive = true);
+    _searchAnimController.forward();
+  }
+
   void _dismissSearch() {
     _searchController.clear();
-    setState(() => _searchActive = false);
+    _searchAnimController.reverse().then((_) {
+      if (mounted) setState(() => _searchActive = false);
+    });
   }
 
   Future<void> _openStudy(
@@ -118,27 +138,39 @@ class LichessScreenState extends State<LichessScreen> {
                               alignment: Alignment.centerLeft,
                               child: Padding(
                                 padding: const EdgeInsets.only(left: 48),
-                                child: FractionallySizedBox(
-                                  widthFactor: 0.5,
-                                  child: TextField(
-                                    controller: _searchController,
-                                    autofocus: true,
-                                    onChanged: (_) => setState(() {}),
-                                    decoration: InputDecoration(
-                                      hintText: 'Search study',
-                                      prefixIcon: const Icon(Icons.search),
-                                      suffixIcon: _searchController.text.isEmpty
-                                          ? null
-                                          : IconButton(
-                                              onPressed: () {
-                                                _searchController.clear();
-                                                setState(() {});
-                                              },
-                                              icon: const Icon(
-                                                Icons.close,
-                                                size: 16,
-                                              ),
-                                            ),
+                                child: ClipRect(
+                                  child: AnimatedBuilder(
+                                    animation: _searchCurvedAnimation,
+                                    builder: (context, child) => Align(
+                                      alignment: Alignment.centerLeft,
+                                      widthFactor: _searchCurvedAnimation.value,
+                                      heightFactor: 1.0,
+                                      child: child,
+                                    ),
+                                    child: FractionallySizedBox(
+                                      widthFactor: 0.5,
+                                      child: TextField(
+                                        controller: _searchController,
+                                        autofocus: true,
+                                        onChanged: (_) => setState(() {}),
+                                        decoration: InputDecoration(
+                                          hintText: 'Search study',
+                                          prefixIcon: const Icon(Icons.search),
+                                          suffixIcon:
+                                              _searchController.text.isEmpty
+                                              ? null
+                                              : IconButton(
+                                                  onPressed: () {
+                                                    _searchController.clear();
+                                                    setState(() {});
+                                                  },
+                                                  icon: const Icon(
+                                                    Icons.close,
+                                                    size: 16,
+                                                  ),
+                                                ),
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -179,9 +211,7 @@ class LichessScreenState extends State<LichessScreen> {
                                     : IconButton(
                                         icon: const Icon(Icons.search),
                                         tooltip: 'Search',
-                                        onPressed: () => setState(
-                                          () => _searchActive = true,
-                                        ),
+                                        onPressed: _activateSearch,
                                       ),
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
