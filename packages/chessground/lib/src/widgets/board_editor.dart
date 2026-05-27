@@ -50,6 +50,7 @@ class ChessboardEditor extends StatefulWidget with ChessboardGeometry {
     this.onEditedSquare,
     this.onDroppedPiece,
     this.onDiscardedPiece,
+    this.onTappedPiece,
   }) : _size = size;
 
   final double _size;
@@ -92,14 +93,15 @@ class ChessboardEditor extends StatefulWidget with ChessboardGeometry {
   /// Each square of the board is a [DragTarget<Piece>], so to drop your own
   /// piece widgets onto the board, put them in a [Draggable<Piece>] and set the
   /// data to the piece you want to drop.
-  final void Function(Square? origin, Square destination, Piece piece)?
-  onDroppedPiece;
+  final void Function(Square? origin, Square destination, Piece piece)? onDroppedPiece;
 
   /// Called when a piece that was originally at the given `square` was dragged
   /// off the board.
   ///
   /// This is active only when [pointerMode] is [EditorPointerMode.drag].
   final void Function(Square square)? onDiscardedPiece;
+
+  final void Function(Square square)? onTappedPiece;
 
   @override
   State<ChessboardEditor> createState() => _BoardEditorState();
@@ -128,8 +130,7 @@ class _BoardEditorState extends State<ChessboardEditor> {
                   alignment: Alignment.topLeft,
                   children: [
                     if (candidateData.isNotEmpty) _dragTarget,
-                    if (widget.pointerMode == EditorPointerMode.drag &&
-                        piece != null)
+                    if (widget.pointerMode == EditorPointerMode.drag && piece != null)
                       Draggable(
                         hitTestBehavior: HitTestBehavior.translucent,
                         data: piece,
@@ -146,10 +147,13 @@ class _BoardEditorState extends State<ChessboardEditor> {
                           widget.onDiscardedPiece?.call(square);
                           draggedPieceOrigin = null;
                         },
-                        child: PieceWidget(
-                          piece: piece,
-                          size: widget.squareSize,
-                          pieceAssets: widget.settings.pieceAssets,
+                        child: GestureDetector(
+                          onTap: () => widget.onTappedPiece?.call(square),
+                          child: PieceWidget(
+                            piece: piece,
+                            size: widget.squareSize,
+                            pieceAssets: widget.settings.pieceAssets,
+                          ),
                         ),
                       )
                     else if (piece != null)
@@ -162,11 +166,7 @@ class _BoardEditorState extends State<ChessboardEditor> {
                 );
               },
               onAcceptWithDetails: (details) {
-                widget.onDroppedPiece?.call(
-                  draggedPieceOrigin,
-                  square,
-                  details.data,
-                );
+                widget.onDroppedPiece?.call(draggedPieceOrigin, square, details.data);
                 draggedPieceOrigin = null;
               },
             ),
@@ -185,8 +185,7 @@ class _BoardEditorState extends State<ChessboardEditor> {
 
     final List<Widget> highlightedBackground = [
       background,
-      for (final MapEntry(key: square, value: highlight)
-          in widget.squareHighlights.entries)
+      for (final MapEntry(key: square, value: highlight) in widget.squareHighlights.entries)
         PositionedSquare(
           key: ValueKey('${square.name}-highlight'),
           size: widget.size,
@@ -217,10 +216,7 @@ class _BoardEditorState extends State<ChessboardEditor> {
                   borderRadius: widget.settings.borderRadius,
                   boxShadow: widget.settings.boxShadow,
                 ),
-                child: Stack(
-                  alignment: Alignment.topLeft,
-                  children: highlightedBackground,
-                ),
+                child: Stack(alignment: Alignment.topLeft, children: highlightedBackground),
               )
             else
               ...highlightedBackground,
@@ -241,25 +237,17 @@ class _BoardEditorState extends State<ChessboardEditor> {
             )
             : board;
 
-    return BrightnessHueFilter(
-      brightness: widget.settings.brightness,
-      child: borderedChessboard,
-    );
+    return BrightnessHueFilter(brightness: widget.settings.brightness, child: borderedChessboard);
   }
 
   Widget get _dragTarget => switch (widget.settings.dragTargetKind) {
     DragTargetKind.circle => Transform.scale(
       scale: 2,
       child: Container(
-        decoration: const BoxDecoration(
-          color: Color(0x33000000),
-          shape: BoxShape.circle,
-        ),
+        decoration: const BoxDecoration(color: Color(0x33000000), shape: BoxShape.circle),
       ),
     ),
-    DragTargetKind.square => Container(
-      decoration: const BoxDecoration(color: Color(0x33000000)),
-    ),
+    DragTargetKind.square => Container(decoration: const BoxDecoration(color: Color(0x33000000))),
     DragTargetKind.none => const SizedBox.shrink(),
   };
 
@@ -333,11 +321,7 @@ class PieceDragFeedback extends StatelessWidget {
     final feedbackSize = squareSize * scale;
     return Transform.translate(
       offset: (offset - const Offset(0.5, 0.5)) * feedbackSize / 2,
-      child: PieceWidget(
-        piece: piece,
-        size: feedbackSize,
-        pieceAssets: pieceAssets,
-      ),
+      child: PieceWidget(piece: piece, size: feedbackSize, pieceAssets: pieceAssets),
     );
   }
 }

@@ -469,6 +469,7 @@ class _BoardEditorScreenState extends State<BoardEditorScreen> {
             ),
             onDroppedPiece: _onDroppedPiece,
             onDiscardedPiece: _onDiscardedPiece,
+            onTappedPiece: _onDiscardedPiece,
             onEditedSquare: _onEditedSquare,
           ),
         ),

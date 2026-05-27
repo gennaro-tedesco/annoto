@@ -76,6 +76,7 @@ class _BoardScreenState extends State<BoardScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   bool _chapterFiltersOpen = false;
   bool _chapterFiltersEnabled = true;
+  bool _bookmarkChapterPressed = false;
   late final AnimationController _filterSpinController;
   final TextEditingController _chapterSearchController =
       TextEditingController();
@@ -111,6 +112,7 @@ class _BoardScreenState extends State<BoardScreen>
   late final bool _ownsEngine;
   Timer? _debounce;
   Timer? _explorerDebounce;
+  Timer? _bookmarkChapterTimer;
   ExplorerResult? _explorerResult;
   bool _explorerLoading = false;
   String? _explorerError;
@@ -311,6 +313,7 @@ class _BoardScreenState extends State<BoardScreen>
     _filterChapterName.dispose();
     _debounce?.cancel();
     _explorerDebounce?.cancel();
+    _bookmarkChapterTimer?.cancel();
     openingExplorerService.cancel();
     _analysisSub?.cancel();
     _moveScrollController.dispose();
@@ -453,6 +456,15 @@ class _BoardScreenState extends State<BoardScreen>
     } catch (_) {
       if (mounted) NotificationService.showError('Failed to save chapter');
     }
+  }
+
+  void _pressBookmarkChapter() {
+    _bookmarkChapterTimer?.cancel();
+    setState(() => _bookmarkChapterPressed = true);
+    _bookmarkChapterTimer = Timer(const Duration(milliseconds: 280), () {
+      if (mounted) setState(() => _bookmarkChapterPressed = false);
+    });
+    unawaited(_bookmarkChapter());
   }
 
   bool _hasActiveChapterFilters() =>
@@ -1620,13 +1632,18 @@ class _BoardScreenState extends State<BoardScreen>
               ),
               const Spacer(),
               if (_games.length > 1)
-                IconButton.filled(
-                  onPressed: _bookmarkChapter,
-                  style: IconButton.styleFrom(
-                    backgroundColor: fillColor,
-                    foregroundColor: theme.colorScheme.onSurface,
+                AnimatedScale(
+                  scale: _bookmarkChapterPressed ? 1.15 : 1,
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeInOutCubic,
+                  child: IconButton.filled(
+                    onPressed: _pressBookmarkChapter,
+                    style: IconButton.styleFrom(
+                      backgroundColor: fillColor,
+                      foregroundColor: theme.colorScheme.onSurface,
+                    ),
+                    icon: const Icon(Icons.star_outline, size: 22),
                   ),
-                  icon: const Icon(Icons.star_outline, size: 22),
                 )
               else if (widget.engineMode)
                 IconButton.filled(
@@ -2436,7 +2453,7 @@ class _BoardScreenState extends State<BoardScreen>
           ),
         ),
       );
-      final tokens = <Widget>[];
+      final tokens = <Widget>[..._commentTokens(theme, _game.comments)];
       int ply = 0;
       PgnNode<PgnNodeData> node = _game.moves;
 
@@ -2586,7 +2603,18 @@ class _BoardScreenState extends State<BoardScreen>
 
     if (endRow == 0) return const SizedBox.shrink();
 
-    final widgets = <Widget>[];
+    final widgets = <Widget>[
+      if (_game.comments.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 0,
+            runSpacing: 4,
+            children: _commentTokens(theme, _game.comments),
+          ),
+        ),
+    ];
     for (int r = 0; r < endRow; r++) {
       if (r < mainRowCount) {
         widgets.add(_buildMainRow(theme, r, mainLine));
