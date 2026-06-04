@@ -123,6 +123,7 @@ class _BoardScreenState extends State<BoardScreen>
   int _multiPv = 1;
   List<EngineEvaluation> _evaluations = [];
   List<EngineEvaluation> _cachedEvaluations = [];
+  Side _cachedEvaluationsTurn = Side.white;
   double _lastWhiteRatio = 0.5;
   StreamSubscription<List<EngineEvaluation>>? _analysisSub;
   final _expandedPvs = <int>{};
@@ -1016,6 +1017,7 @@ class _BoardScreenState extends State<BoardScreen>
               setState(() {
                 _evaluations = evals;
                 _cachedEvaluations = evals;
+                _cachedEvaluationsTurn = _currentPosition.turn;
               });
           });
     } catch (error) {
@@ -1115,7 +1117,8 @@ class _BoardScreenState extends State<BoardScreen>
     return widgets;
   }
 
-  int _cpFromWhite(int cp) => _currentPosition.turn == Side.white ? cp : -cp;
+  int _cpFromWhite(int cp, [Side? turn]) =>
+      (turn ?? _currentPosition.turn) == Side.white ? cp : -cp;
 
   double _winningChancesFromCp(int cp) {
     const multiplier = -0.00368208;
@@ -1216,15 +1219,20 @@ class _BoardScreenState extends State<BoardScreen>
     return shapes.lock;
   }
 
-  Widget _buildEvalLine(ThemeData theme, EngineEvaluation eval, int pvIndex) {
+  Widget _buildEvalLine(
+    ThemeData theme,
+    EngineEvaluation eval,
+    int pvIndex, [
+    Side? evaluationTurn,
+  ]) {
     final String? evalText;
     if (eval.mate != null) {
-      final mate = _currentPosition.turn == Side.white
+      final mate = (evaluationTurn ?? _currentPosition.turn) == Side.white
           ? eval.mate!
           : -eval.mate!;
       evalText = '#$mate';
     } else if (eval.cp != null) {
-      final pawns = _cpFromWhite(eval.cp!) / 100.0;
+      final pawns = _cpFromWhite(eval.cp!, evaluationTurn) / 100.0;
       evalText = pawns >= 0
           ? '+${pawns.toStringAsFixed(2)}'
           : pawns.toStringAsFixed(2);
@@ -1498,10 +1506,10 @@ class _BoardScreenState extends State<BoardScreen>
       );
     }
 
+    final usingCachedEvaluations = _evaluations.isEmpty;
     final displayEvals =
-        (_evaluations.isNotEmpty
-                ? _evaluations
-                : _cachedEvaluations
+        (usingCachedEvaluations
+                ? _cachedEvaluations
                       .map(
                         (e) => EngineEvaluation(
                           cp: e.cp,
@@ -1511,9 +1519,11 @@ class _BoardScreenState extends State<BoardScreen>
                           depth: e.depth,
                         ),
                       )
-                      .toList())
+                      .toList()
+                : _evaluations)
             .take(_multiPv)
             .toList();
+    final displayTurn = usingCachedEvaluations ? _cachedEvaluationsTurn : null;
 
     return ColoredBox(
       color: panelColor,
@@ -1521,7 +1531,7 @@ class _BoardScreenState extends State<BoardScreen>
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         children: [
           for (int i = 0; i < displayEvals.length; i++)
-            _buildEvalLine(theme, displayEvals[i], i),
+            _buildEvalLine(theme, displayEvals[i], i, displayTurn),
         ],
       ),
     );

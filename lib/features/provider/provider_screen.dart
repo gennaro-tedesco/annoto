@@ -54,6 +54,11 @@ class _ProviderScreenState extends State<ProviderScreen> {
         .replaceFirst(RegExp(r'\.$'), '');
   }
 
+  String _displayModelName(String model) {
+    final slashIndex = model.indexOf('/');
+    return slashIndex == -1 ? model : model.substring(slashIndex + 1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = AppStateScope.of(context);
@@ -139,7 +144,7 @@ class _ProviderScreenState extends State<ProviderScreen> {
                                 borderRadius: BorderRadius.circular(16),
                                 child: Chip(
                                   label: Text(
-                                    model,
+                                    _displayModelName(model),
                                     style: theme.textTheme.bodySmall?.copyWith(
                                       color: color,
                                     ),
