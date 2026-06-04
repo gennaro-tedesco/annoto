@@ -110,12 +110,6 @@ const _openRouterHints = {
   quota: ['rate limit', 'quota', 'billing', 'credit'],
 }
 
-const _groqHints = {
-  unavailable: ['service unavailable'],
-  notFound: ['model not found', 'does not exist'],
-  quota: ['rate limit', 'quota'],
-}
-
 export type GoogleConfig = { apiKey: string; model: string }
 
 export class GoogleProvider implements PgnProvider {
@@ -185,6 +179,8 @@ export class OpenRouterProvider implements PgnProvider {
       headers: {
         Authorization: `Bearer ${this.cfg.apiKey}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://github.com/gennaro-tedesco/annoto',
+        'X-OpenRouter-Title': 'Annoto pgn extract',
       },
       body: JSON.stringify({
         model: this.cfg.model,
@@ -210,48 +206,6 @@ export class OpenRouterProvider implements PgnProvider {
 
     const data = await res.json()
     console.log('OpenRouter API response', JSON.stringify(data).slice(0, 500))
-    const content: string = data?.choices?.[0]?.message?.content ?? ''
-    if (!content.trim()) throw new Error('empty_model_output')
-    return _parsePgnData(content)
-  }
-}
-
-export type GroqConfig = { apiKey: string; model: string }
-
-export class GroqProvider implements PgnProvider {
-  constructor(private readonly cfg: GroqConfig) {}
-
-  async extractPgn(imageBase64: string, mimeType: string): Promise<PgnData> {
-    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.cfg.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: this.cfg.model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: _prompt },
-              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
-            ],
-          },
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0,
-      }),
-    })
-
-    if (!res.ok) {
-      const errBody = await res.text()
-      console.error('Groq API error', res.status, errBody)
-      throw new Error(_classifyHttpError(res.status, errBody, _groqHints))
-    }
-
-    const data = await res.json()
-    console.log('Groq API response', JSON.stringify(data).slice(0, 500))
     const content: string = data?.choices?.[0]?.message?.content ?? ''
     if (!content.trim()) throw new Error('empty_model_output')
     return _parsePgnData(content)

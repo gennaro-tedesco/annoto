@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-enum AiProvider { gemini, openrouter, groq }
+enum AiProvider { gemini, openrouter }
 
 extension AiProviderLabel on AiProvider {
   String get label {
@@ -12,8 +12,6 @@ extension AiProviderLabel on AiProvider {
         return 'Gemini';
       case AiProvider.openrouter:
         return 'OpenRouter 👑';
-      case AiProvider.groq:
-        return 'Groq';
     }
   }
 
@@ -23,8 +21,6 @@ extension AiProviderLabel on AiProvider {
         return 'google';
       case AiProvider.openrouter:
         return 'openrouter';
-      case AiProvider.groq:
-        return 'groq';
     }
   }
 }
@@ -48,9 +44,11 @@ class AppState extends ChangeNotifier {
   late final StreamSubscription<AuthState> _authSubscription;
 
   AiProvider _selectedProvider = AiProvider.gemini;
+  String? _selectedModel;
   SessionState _session = const SessionState();
 
   AiProvider get selectedProvider => _selectedProvider;
+  String? get selectedModel => _selectedModel;
   SessionState get session => _session;
 
   @override
@@ -62,6 +60,12 @@ class AppState extends ChangeNotifier {
   void selectProvider(AiProvider provider) {
     if (_selectedProvider == provider) return;
     _selectedProvider = provider;
+    notifyListeners();
+  }
+
+  void selectModel(String model) {
+    if (_selectedModel == model) return;
+    _selectedModel = model;
     notifyListeners();
   }
 

@@ -248,7 +248,7 @@ class _BoardEditorScreenState extends State<BoardEditorScreen> {
     try {
       final selectedProvider = AppStateScope.of(context).selectedProvider;
       final provider = selectedProvider.providerKey;
-      final model = providerModels[selectedProvider]!.first;
+      final model = selectedModelFor(AppStateScope.of(context));
       final response = await Supabase.instance.client.functions.invoke(
         'extract-fen',
         body: {
