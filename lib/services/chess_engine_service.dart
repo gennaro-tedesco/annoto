@@ -177,7 +177,11 @@ class ChessEngineService {
     }
   }
 
-  Stream<List<EngineEvaluation>> startAnalysis(String fen, {int multiPv = 1}) {
+  Stream<List<EngineEvaluation>> startAnalysis(
+    String fen, {
+    int multiPv = 1,
+    bool preservePvMap = false,
+  }) {
     if (!_started) throw StateError('Engine not initialized');
     if (jobKind.value == EngineJobKind.gameAnalysis) {
       throw StateError('Game analysis is active');
@@ -191,7 +195,7 @@ class ChessEngineService {
 
     final generation = ++_analysisGeneration;
     _acceptingAnalysis = false;
-    _pvMap.clear();
+    if (!preservePvMap) _pvMap.clear();
     jobKind.value = EngineJobKind.liveAnalysis;
     unawaited(_sendAnalysisCommands(fen, multiPv, generation));
 

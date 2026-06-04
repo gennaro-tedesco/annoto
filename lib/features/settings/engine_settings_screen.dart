@@ -99,6 +99,9 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
       if (selected != null && !engines.any((e) => e.packageName == selected)) {
         selectedEnginePackageNotifier.value = null;
       }
+      if (selectedEnginePackageNotifier.value == null && engines.length == 1) {
+        selectedEnginePackageNotifier.value = engines.first.packageName;
+      }
       setState(() {
         _engines = engines;
         _loading = false;

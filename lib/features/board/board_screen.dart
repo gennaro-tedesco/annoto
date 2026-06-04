@@ -122,6 +122,8 @@ class _BoardScreenState extends State<BoardScreen>
   bool _engineEnabled = false;
   int _multiPv = 1;
   List<EngineEvaluation> _evaluations = [];
+  List<EngineEvaluation> _cachedEvaluations = [];
+  double _lastWhiteRatio = 0.5;
   StreamSubscription<List<EngineEvaluation>>? _analysisSub;
   final _expandedPvs = <int>{};
   GameAnalysisController? _gameAnalysis;
@@ -943,8 +945,9 @@ class _BoardScreenState extends State<BoardScreen>
 
   void _setMultiPv(int n) {
     if (_multiPv == n) return;
+    final isIncrease = n > _multiPv;
     setState(() => _multiPv = n);
-    if (_engineEnabled) _startAnalysis();
+    if (_engineEnabled && isIncrease) _startAnalysis(preserveEvals: true);
   }
 
   Future<void> _openEditor() async {
@@ -992,18 +995,28 @@ class _BoardScreenState extends State<BoardScreen>
     }
   }
 
-  void _startAnalysis() {
+  void _startAnalysis({bool preserveEvals = false}) {
     if (!mounted) return;
     _analysisSub?.cancel();
-    setState(() {
-      _evaluations = [];
-      _expandedPvs.clear();
-    });
+    if (!preserveEvals) {
+      setState(() {
+        _evaluations = [];
+        _expandedPvs.clear();
+      });
+    }
     try {
       _analysisSub = _engine
-          .startAnalysis(_currentPosition.fen, multiPv: _multiPv)
+          .startAnalysis(
+            _currentPosition.fen,
+            multiPv: _multiPv,
+            preservePvMap: preserveEvals,
+          )
           .listen((evals) {
-            if (mounted) setState(() => _evaluations = evals);
+            if (mounted)
+              setState(() {
+                _evaluations = evals;
+                _cachedEvaluations = evals;
+              });
           });
     } catch (error) {
       if (mounted) {
@@ -1231,71 +1244,77 @@ class _BoardScreenState extends State<BoardScreen>
           )
         : theme.textTheme.bodyMedium;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            child: evalText != null
-                ? Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Text(
-                      evalText,
-                      style: textStyle?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.primary,
+    final firstMove = eval.pv.isNotEmpty ? Move.parse(eval.pv.first) : null;
+
+    return GestureDetector(
+      onTap: firstMove != null ? () => _onMove(firstMove) : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              child: evalText != null
+                  ? Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        evalText,
+                        style: textStyle?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
+                        ),
                       ),
-                    ),
-                  )
-                : null,
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  ..._buildPvTokens(theme, visibleTokens),
-                  if (canFold && !isExpanded)
-                    GestureDetector(
-                      onTap: () => setState(() => _expandedPvs.add(pvIndex)),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 2),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '…',
-                              style: textStyle?.copyWith(
-                                color: theme.colorScheme.outline,
+                    )
+                  : null,
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ..._buildPvTokens(theme, visibleTokens),
+                    if (canFold && !isExpanded)
+                      GestureDetector(
+                        onTap: () => setState(() => _expandedPvs.add(pvIndex)),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '…',
+                                style: textStyle?.copyWith(
+                                  color: theme.colorScheme.outline,
+                                ),
                               ),
-                            ),
-                            Icon(
-                              Icons.chevron_right,
-                              size: 14,
-                              color: theme.colorScheme.primary,
-                            ),
-                          ],
+                              Icon(
+                                Icons.chevron_right,
+                                size: 14,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  if (canFold && isExpanded)
-                    GestureDetector(
-                      onTap: () => setState(() => _expandedPvs.remove(pvIndex)),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 2),
-                        child: Icon(
-                          Icons.chevron_left,
-                          size: 14,
-                          color: theme.colorScheme.outline,
+                    if (canFold && isExpanded)
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _expandedPvs.remove(pvIndex)),
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 2),
+                          child: Icon(
+                            Icons.chevron_left,
+                            size: 14,
+                            color: theme.colorScheme.outline,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1466,7 +1485,7 @@ class _BoardScreenState extends State<BoardScreen>
       theme.scaffoldBackgroundColor,
     );
 
-    if (_evaluations.isEmpty) {
+    if (_evaluations.isEmpty && _cachedEvaluations.isEmpty) {
       return ColoredBox(
         color: panelColor,
         child: const Center(
@@ -1479,13 +1498,30 @@ class _BoardScreenState extends State<BoardScreen>
       );
     }
 
+    final displayEvals =
+        (_evaluations.isNotEmpty
+                ? _evaluations
+                : _cachedEvaluations
+                      .map(
+                        (e) => EngineEvaluation(
+                          cp: e.cp,
+                          mate: e.mate,
+                          bestMove: e.pv.length > 1 ? e.pv[1] : null,
+                          pv: e.pv.length > 1 ? e.pv.sublist(1) : [],
+                          depth: e.depth,
+                        ),
+                      )
+                      .toList())
+            .take(_multiPv)
+            .toList();
+
     return ColoredBox(
       color: panelColor,
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         children: [
-          for (int i = 0; i < _evaluations.length; i++)
-            _buildEvalLine(theme, _evaluations[i], i),
+          for (int i = 0; i < displayEvals.length; i++)
+            _buildEvalLine(theme, displayEvals[i], i),
         ],
       ),
     );
@@ -2051,7 +2087,7 @@ class _BoardScreenState extends State<BoardScreen>
 
   Widget _buildEvalGauge(ThemeData theme) {
     const maxGaugePawns = 7;
-    double whiteRatio = 0.5;
+    double whiteRatio = _lastWhiteRatio;
     int depth = 0;
     String? evalText;
 
@@ -2076,6 +2112,7 @@ class _BoardScreenState extends State<BoardScreen>
             ? '+${pawns.toStringAsFixed(2)}'
             : pawns.toStringAsFixed(2);
       }
+      _lastWhiteRatio = whiteRatio;
     }
 
     final labelParts = [
