@@ -32,6 +32,20 @@ class NotificationService {
     );
   }
 
+  static String aiErrorMessage(String code) => switch (code) {
+    'quota_exceeded' =>
+      'AI provider quota exceeded. Try again later or switch provider.',
+    'provider_unavailable' =>
+      'AI provider is currently unavailable. Try again later.',
+    'unknown_provider' =>
+      'Unknown AI provider selected. Please check your settings.',
+    'model_not_found' => 'The selected AI model is unavailable.',
+    'empty_model_output' => 'The AI returned no content. Try a clearer image.',
+    'unauthorized' => 'Authentication required. Please sign in.',
+    'payload_too_large' => 'Image is too large. Please use a smaller file.',
+    _ => 'Extraction failed. Try again.',
+  };
+
   static ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? showError(
     String message,
   ) {

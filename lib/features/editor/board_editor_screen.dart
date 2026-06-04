@@ -1,9 +1,15 @@
+import 'dart:convert';
+
+import 'package:annoto/app/ai_models.dart';
+import 'package:annoto/app/app_state.dart';
 import 'package:annoto/app/themes.dart';
 import 'package:annoto/app/ui_sizes.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BoardEditorScreen extends StatefulWidget {
   const BoardEditorScreen({super.key});
@@ -158,6 +164,134 @@ class _BoardEditorScreenState extends State<BoardEditorScreen> {
     _syncFenController();
   }
 
+  String _adjustFenForCheck(String fen) {
+    final parts = fen.trim().split(' ');
+    if (parts.length < 2) return fen;
+
+    bool? whiteInCheck;
+    bool? blackInCheck;
+
+    try {
+      final f = ([...parts]..[1] = 'w').join(' ');
+      whiteInCheck = Chess.fromSetup(Setup.parseFen(f)).isCheck;
+    } catch (_) {}
+
+    try {
+      final f = ([...parts]..[1] = 'b').join(' ');
+      blackInCheck = Chess.fromSetup(Setup.parseFen(f)).isCheck;
+    } catch (_) {}
+
+    if (whiteInCheck == true && blackInCheck != true) {
+      parts[1] = 'w';
+      return parts.join(' ');
+    }
+    if (blackInCheck == true && whiteInCheck != true) {
+      parts[1] = 'b';
+      return parts.join(' ');
+    }
+    return fen;
+  }
+
+  Future<void> _importFromImage() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Take a photo'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                final image = await ImagePicker().pickImage(
+                  source: ImageSource.camera,
+                );
+                if (image != null && mounted) await _processImage(image);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Upload from gallery'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                final image = await ImagePicker().pickImage(
+                  source: ImageSource.gallery,
+                );
+                if (image != null && mounted) await _processImage(image);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processImage(XFile image) async {
+    final bytes = await image.readAsBytes();
+    final b64 = base64Encode(bytes);
+    final mimeType = image.name.toLowerCase().endsWith('.png')
+        ? 'image/png'
+        : 'image/jpeg';
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    String? errorMessage;
+    String? fen;
+
+    try {
+      final selectedProvider = AppStateScope.of(context).selectedProvider;
+      final provider = selectedProvider.providerKey;
+      final model = providerModels[selectedProvider]!.first;
+      final response = await Supabase.instance.client.functions.invoke(
+        'extract-fen',
+        body: {
+          'image': b64,
+          'mimeType': mimeType,
+          'provider': provider,
+          'model': model,
+        },
+      );
+      final data = response.data as Map<String, dynamic>;
+      if (data['error'] != null) {
+        errorMessage = NotificationService.aiErrorMessage(
+          data['error'] as String,
+        );
+      } else {
+        fen = data['fen'] as String?;
+      }
+    } on FunctionException catch (e) {
+      final details = e.details;
+      final code = details is Map<String, dynamic>
+          ? details['error']?.toString()
+          : null;
+      errorMessage = NotificationService.aiErrorMessage(
+        code ?? 'extraction_failed',
+      );
+    } catch (_) {
+      errorMessage = 'Failed to extract position.';
+    } finally {
+      if (mounted) Navigator.of(context).pop();
+    }
+
+    if (!mounted) return;
+    if (errorMessage != null) {
+      NotificationService.showError(errorMessage);
+      return;
+    }
+    if (fen != null && fen.isNotEmpty) {
+      final adjusted = _adjustFenForCheck(fen);
+      _fenController.text = adjusted;
+      _onFenChanged(adjusted);
+    }
+  }
+
   void _onConfirm() {
     if (!_isValid()) {
       NotificationService.showError('invalid position');
@@ -200,6 +334,15 @@ class _BoardEditorScreenState extends State<BoardEditorScreen> {
                   foregroundColor: theme.colorScheme.onSurface,
                 ),
                 icon: const Icon(Icons.chevron_left, size: 22),
+              ),
+              const Spacer(),
+              IconButton.filled(
+                onPressed: _importFromImage,
+                style: IconButton.styleFrom(
+                  backgroundColor: fillColor,
+                  foregroundColor: theme.colorScheme.onSurface,
+                ),
+                icon: const Icon(Icons.image_search_outlined, size: 20),
               ),
               const Spacer(),
               IconButton.filled(

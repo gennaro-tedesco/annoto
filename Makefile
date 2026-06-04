@@ -15,4 +15,6 @@ build:
 SUPABASE_PROJECT_REF := $(shell jq -r '.SUPABASE_PROJECT_REF' config.json)
 
 supabase_deploy:
-	supabase functions deploy extract-pgn --no-verify-jwt --project-ref $(SUPABASE_PROJECT_REF)
+	for fn in supabase/functions/*/; do \
+		supabase functions deploy $$(basename $$fn) --no-verify-jwt --project-ref $(SUPABASE_PROJECT_REF); \
+	done
