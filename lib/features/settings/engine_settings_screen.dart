@@ -125,6 +125,8 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
         analysisDepthNotifier,
         keepAnalysisAliveNotifier,
         engineArrowsNotifier,
+        gifPixelRatioNotifier,
+        gifFrameDurationNotifier,
       ]),
       builder: (context, child) {
         final theme = Theme.of(context);
@@ -141,7 +143,7 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
               tooltip: 'Back',
               icon: const Icon(Icons.chevron_left, size: 22),
             ),
-            title: const Text('Chess engine'),
+            title: const Text('Engine & GIF'),
             actions: [],
           ),
           body: ListView(
@@ -272,6 +274,90 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
                   ),
                   value: engineArrowsNotifier.value,
                   onChanged: (v) => engineArrowsNotifier.value = v,
+                ),
+              ),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: Divider(color: theme.colorScheme.outlineVariant),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      'GIF export',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(color: theme.colorScheme.outlineVariant),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'GIF resolution',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          Text(
+                            '${gifPixelRatioNotifier.value}x',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      Slider(
+                        min: 1.0,
+                        max: 3.0,
+                        divisions: 4,
+                        value: gifPixelRatioNotifier.value,
+                        label: '${gifPixelRatioNotifier.value}x',
+                        onChanged: (value) {
+                          gifPixelRatioNotifier.value = value;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('GIF speed', style: theme.textTheme.titleMedium),
+                          Text(
+                            '${(gifFrameDurationNotifier.value / 100).toStringAsFixed(2)}s/move',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      Slider(
+                        min: 20,
+                        max: 150,
+                        divisions: 13,
+                        value: gifFrameDurationNotifier.value.toDouble(),
+                        label:
+                            '${(gifFrameDurationNotifier.value / 100).toStringAsFixed(2)}s',
+                        onChanged: (value) {
+                          gifFrameDurationNotifier.value = value.round();
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
