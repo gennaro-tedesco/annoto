@@ -276,6 +276,24 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
                   onChanged: (v) => engineArrowsNotifier.value = v,
                 ),
               ),
+              const SizedBox(height: 32),
+              Row(
+                children: [
+                  Expanded(
+                    child: Divider(color: theme.colorScheme.outlineVariant),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      'GIF export',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                  ),
+                  Expanded(
+                    child: Divider(color: theme.colorScheme.outlineVariant),
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
               Card(
                 child: Padding(
