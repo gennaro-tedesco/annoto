@@ -76,7 +76,7 @@ class SettingsScreen extends StatelessWidget {
                   const Divider(height: 1),
                   ListTile(
                     visualDensity: _tileDensity,
-                    title: const Text('Engine & GIF'),
+                    title: const Text('Engine'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () =>
                         _openSubpage(context, const EngineSettingsScreen()),

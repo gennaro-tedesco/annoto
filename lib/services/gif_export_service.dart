@@ -1,3 +1,4 @@
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:dartchess/dartchess.dart';
@@ -37,28 +38,47 @@ List<String> capGifFrames(List<String> fens, {int maxFrames = maxGifFrames}) {
   ];
 }
 
-typedef GifEncodeInput = ({List<Uint8List> frames, int frameDuration});
+typedef GifEncodeRequest = ({
+  SendPort progressPort,
+  List<Uint8List> frames,
+  int frameDuration,
+});
 
-Uint8List? encodeGifFrames(GifEncodeInput input) {
-  if (input.frames.isEmpty) return null;
+/// Isolate entry point. Sends a `double` (0..1) after each encoded frame,
+/// then sends the final `Uint8List?` result once encoding is complete.
+void runGifEncoding(GifEncodeRequest request) {
+  final frames = request.frames;
+  final total = frames.length;
 
-  final firstImage = img.decodePng(input.frames.first);
-  if (firstImage == null) return null;
+  if (total == 0) {
+    request.progressPort.send(null);
+    return;
+  }
+
+  final firstImage = img.decodePng(frames.first);
+  if (firstImage == null) {
+    request.progressPort.send(null);
+    return;
+  }
 
   final quantizer = img.NeuralQuantizer(firstImage);
   final encoder = img.GifEncoder(repeat: 0);
   encoder.addFrame(
     img.ditherImage(firstImage, quantizer: quantizer),
-    duration: input.frameDuration,
+    duration: request.frameDuration,
   );
+  request.progressPort.send(1 / total);
 
-  for (final png in input.frames.skip(1)) {
-    final image = img.decodePng(png);
-    if (image == null) continue;
-    encoder.addFrame(
-      img.ditherImage(image, quantizer: quantizer),
-      duration: input.frameDuration,
-    );
+  for (var i = 1; i < total; i++) {
+    final image = img.decodePng(frames[i]);
+    if (image != null) {
+      encoder.addFrame(
+        img.ditherImage(image, quantizer: quantizer),
+        duration: request.frameDuration,
+      );
+    }
+    request.progressPort.send((i + 1) / total);
   }
-  return encoder.finish();
+
+  request.progressPort.send(encoder.finish());
 }

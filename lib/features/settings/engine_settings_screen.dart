@@ -143,7 +143,7 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
               tooltip: 'Back',
               icon: const Icon(Icons.chevron_left, size: 22),
             ),
-            title: const Text('Engine & GIF'),
+            title: const Text('Engine'),
             actions: [],
           ),
           body: ListView(

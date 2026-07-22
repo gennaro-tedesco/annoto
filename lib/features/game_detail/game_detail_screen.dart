@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -12,7 +13,6 @@ import 'package:annoto/services/pgn_validator.dart';
 import 'package:annoto/widgets/section_toggle.dart';
 import 'package:chessground/chessground.dart';
 import 'package:dartchess/dartchess.dart' show PgnGame, Position, Side;
-import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:path_provider/path_provider.dart';
@@ -218,11 +218,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     try {
       final frames = await _captureGifFrames(capGifFrames(fens));
       if (!mounted) return;
-      setState(() => _gifProgress = null);
-      final gifBytes = await compute(encodeGifFrames, (
-        frames: frames,
-        frameDuration: gifFrameDurationNotifier.value,
-      ));
+      final gifBytes = await _encodeGif(frames, gifFrameDurationNotifier.value);
       if (gifBytes == null) throw Exception('GIF encoding failed.');
 
       final dir = await getTemporaryDirectory();
@@ -240,6 +236,31 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           _gifProgress = null;
         });
       }
+    }
+  }
+
+  Future<Uint8List?> _encodeGif(
+    List<Uint8List> frames,
+    int frameDuration,
+  ) async {
+    final receivePort = ReceivePort();
+    try {
+      await Isolate.spawn(runGifEncoding, (
+        progressPort: receivePort.sendPort,
+        frames: frames,
+        frameDuration: frameDuration,
+      ));
+
+      await for (final message in receivePort) {
+        if (message is double) {
+          if (mounted) setState(() => _gifProgress = 0.5 + 0.5 * message);
+        } else {
+          return message as Uint8List?;
+        }
+      }
+      return null;
+    } finally {
+      receivePort.close();
     }
   }
 
@@ -308,7 +329,9 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
         image.dispose();
         frames.add(byteData!.buffer.asUint8List());
 
-        if (mounted) setState(() => _gifProgress = (i + 1) / fens.length);
+        if (mounted) {
+          setState(() => _gifProgress = 0.5 * (i + 1) / fens.length);
+        }
       }
     } finally {
       entry.remove();

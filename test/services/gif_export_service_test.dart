@@ -1,9 +1,35 @@
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:annoto/services/gif_export_service.dart';
 import 'package:dartchess/dartchess.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+
+Future<(List<double>, Uint8List?)> _runEncoding(
+  List<Uint8List> frames,
+  int frameDuration,
+) async {
+  final port = ReceivePort();
+  runGifEncoding((
+    progressPort: port.sendPort,
+    frames: frames,
+    frameDuration: frameDuration,
+  ));
+
+  final progress = <double>[];
+  Uint8List? result;
+  await for (final message in port) {
+    if (message is double) {
+      progress.add(message);
+    } else {
+      result = message as Uint8List?;
+      break;
+    }
+  }
+  port.close();
+  return (progress, result);
+}
 
 void main() {
   group('mainlineFens', () {
@@ -69,27 +95,34 @@ void main() {
     });
   });
 
-  group('encodeGifFrames', () {
+  group('runGifEncoding', () {
     Uint8List framePng() {
       final image = img.Image(width: 4, height: 4);
       img.fill(image, color: img.ColorRgb8(255, 0, 0));
       return img.encodePng(image);
     }
 
-    test('encodes a valid animated GIF from PNG frames', () {
-      final frames = [framePng(), framePng()];
-      final gif = encodeGifFrames((frames: frames, frameDuration: 60));
-      expect(gif, isNotNull);
-      expect(String.fromCharCodes(gif!.take(3)), 'GIF');
+    test(
+      'reports progress after each frame and sends the final GIF bytes',
+      () async {
+        final frames = [framePng(), framePng()];
+        final (progress, gif) = await _runEncoding(frames, 60);
+
+        expect(progress, [0.5, 1.0]);
+        expect(gif, isNotNull);
+        expect(String.fromCharCodes(gif!.take(3)), 'GIF');
+      },
+    );
+
+    test('sends null when given no frames', () async {
+      final (progress, gif) = await _runEncoding([], 60);
+      expect(progress, isEmpty);
+      expect(gif, isNull);
     });
 
-    test('returns null when given no frames', () {
-      expect(encodeGifFrames((frames: [], frameDuration: 60)), isNull);
-    });
-
-    test('preserves every input frame, including the first', () {
+    test('preserves every input frame, including the first', () async {
       final frames = [framePng(), framePng(), framePng()];
-      final gif = encodeGifFrames((frames: frames, frameDuration: 60));
+      final (_, gif) = await _runEncoding(frames, 60);
       final decoded = img.decodeGif(gif!)!;
       expect(decoded.numFrames, frames.length);
     });
