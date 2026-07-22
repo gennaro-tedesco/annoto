@@ -143,7 +143,7 @@ class _EngineSettingsScreenState extends State<EngineSettingsScreen> {
               tooltip: 'Back',
               icon: const Icon(Icons.chevron_left, size: 22),
             ),
-            title: const Text('Chess engine'),
+            title: const Text('Engine & GIF'),
             actions: [],
           ),
           body: ListView(

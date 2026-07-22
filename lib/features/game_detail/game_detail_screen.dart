@@ -11,7 +11,7 @@ import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/services/pgn_validator.dart';
 import 'package:annoto/widgets/section_toggle.dart';
 import 'package:chessground/chessground.dart';
-import 'package:dartchess/dartchess.dart' show Side;
+import 'package:dartchess/dartchess.dart' show PgnGame, Position, Side;
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
@@ -188,9 +188,25 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   Future<void> _createGif() async {
     if (_generatingGif) return;
 
-    final fens = mainlineFens(_sansForGif);
-    if (fens.length < 2) {
+    final sans = _sansForGif;
+    if (sans.isEmpty) {
       NotificationService.showError('No moves to export.');
+      return;
+    }
+
+    final Position start;
+    try {
+      start = PgnGame.startingPosition(
+        parsePgnGame(_games[_currentChapter]).headers,
+      );
+    } catch (_) {
+      NotificationService.showError('Invalid game headers.');
+      return;
+    }
+
+    final fens = mainlineFens(start, sans);
+    if (fens.length != sans.length + 1) {
+      NotificationService.showError('Fix invalid moves before exporting.');
       return;
     }
 
@@ -200,8 +216,9 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     });
 
     try {
-      final frames = await _captureGifFrames(fens);
-      if (mounted) setState(() => _gifProgress = null);
+      final frames = await _captureGifFrames(capGifFrames(fens));
+      if (!mounted) return;
+      setState(() => _gifProgress = null);
       final gifBytes = await compute(encodeGifFrames, (
         frames: frames,
         frameDuration: gifFrameDurationNotifier.value,
@@ -275,10 +292,11 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
     final frames = <Uint8List>[];
     try {
       for (var i = 0; i < fens.length; i++) {
+        if (!mounted) break;
         currentFen = fens[i];
         entry.markNeedsBuild();
         await WidgetsBinding.instance.endOfFrame;
-        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) break;
 
         final boundary =
             boundaryKey.currentContext!.findRenderObject()
@@ -287,6 +305,7 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
           pixelRatio: gifPixelRatioNotifier.value,
         );
         final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        image.dispose();
         frames.add(byteData!.buffer.asUint8List());
 
         if (mounted) setState(() => _gifProgress = (i + 1) / fens.length);
@@ -330,171 +349,179 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
         theme.inputDecorationTheme.fillColor ??
         theme.colorScheme.surfaceContainerHighest;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                children: [
-                  if (_games.length > 1)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: PopupMenuButton<int>(
-                        tooltip: 'Select game',
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.menu_book_outlined, size: 16),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Game ${_currentChapter + 1} / ${_games.length}',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            const Icon(Icons.expand_more, size: 16),
-                          ],
-                        ),
-                        onSelected: _loadChapter,
-                        itemBuilder: (_) => [
-                          for (int i = 0; i < _games.length; i++)
-                            PopupMenuItem(
-                              value: i,
-                              child: Text(_chapterLabel(i)),
-                            ),
-                        ],
-                      ),
-                    ),
-                  SectionToggle(
-                    title: 'Headers',
-                    expanded: _headersExpanded,
-                    onPressed: () {
-                      setState(() => _headersExpanded = !_headersExpanded);
-                    },
+    return PopScope(
+      canPop: !_generatingGif,
+      child: Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
                   ),
-                  if (_headersExpanded)
-                    ...kPgnTagOrder.map(
-                      (tag) => Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 64,
-                              child: Text(
-                                tag,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: TextField(
+                  children: [
+                    if (_games.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: PopupMenuButton<int>(
+                          tooltip: 'Select game',
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.menu_book_outlined, size: 16),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Game ${_currentChapter + 1} / ${_games.length}',
                                 style: theme.textTheme.bodySmall,
-                                controller: _headerControllers[tag],
-                                onChanged: (_) => setState(() {}),
-                                decoration: InputDecoration(
-                                  hintText: tag,
-                                  hintStyle: theme.textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: theme
-                                            .colorScheme
-                                            .onSurfaceVariant
-                                            .withValues(alpha: 0.5),
-                                      ),
-                                  isDense: true,
-                                  constraints: const BoxConstraints(
-                                    minHeight: _inputCardsHeight,
-                                    maxHeight: _inputCardsHeight,
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                ),
                               ),
-                            ),
-                            const SizedBox(width: 36),
+                              const Icon(Icons.expand_more, size: 16),
+                            ],
+                          ),
+                          onSelected: _loadChapter,
+                          itemBuilder: (_) => [
+                            for (int i = 0; i < _games.length; i++)
+                              PopupMenuItem(
+                                value: i,
+                                child: Text(_chapterLabel(i)),
+                              ),
                           ],
                         ),
                       ),
+                    SectionToggle(
+                      title: 'Headers',
+                      expanded: _headersExpanded,
+                      onPressed: () {
+                        setState(() => _headersExpanded = !_headersExpanded);
+                      },
                     ),
-                  const SizedBox(height: 12),
-                  Divider(color: theme.colorScheme.outlineVariant),
-                  const SizedBox(height: 4),
-                  SectionToggle(
-                    title: 'Moves',
-                    expanded: _movesExpanded,
-                    onPressed: () {
-                      setState(() => _movesExpanded = !_movesExpanded);
-                    },
-                  ),
-                  if (_movesExpanded)
-                    ..._moves.asMap().entries.map(
-                      (entry) => _buildMoveRow(context, entry.value, entry.key),
-                    ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  IconButton.filled(
-                    onPressed: () => Navigator.pop(context),
-                    style: IconButton.styleFrom(
-                      backgroundColor: fillColor,
-                      foregroundColor: theme.colorScheme.onSurface,
-                    ),
-                    icon: const Icon(Icons.chevron_left, size: 22),
-                  ),
-                  const Spacer(),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton.filled(
-                        onPressed: _share,
-                        style: IconButton.styleFrom(
-                          backgroundColor: fillColor,
-                          foregroundColor: theme.colorScheme.onSurface,
-                          side: _plyValidity.any((v) => !v)
-                              ? BorderSide(color: theme.colorScheme.error)
-                              : null,
-                        ),
-                        icon: const Icon(Icons.share, size: 20),
-                      ),
-                      const SizedBox(width: 12),
-                      IconButton.filled(
-                        onPressed: _generatingGif ? null : _createGif,
-                        tooltip: 'Create GIF',
-                        style: IconButton.styleFrom(
-                          backgroundColor: fillColor,
-                          foregroundColor: theme.colorScheme.onSurface,
-                        ),
-                        icon: _generatingGif
-                            ? SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  value: _gifProgress,
+                    if (_headersExpanded)
+                      ...kPgnTagOrder.map(
+                        (tag) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 64,
+                                child: Text(
+                                  tag,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
                                 ),
-                              )
-                            : const Icon(Icons.gif_box_outlined, size: 20),
+                              ),
+                              Expanded(
+                                child: TextField(
+                                  style: theme.textTheme.bodySmall,
+                                  controller: _headerControllers[tag],
+                                  onChanged: (_) => setState(() {}),
+                                  decoration: InputDecoration(
+                                    hintText: tag,
+                                    hintStyle: theme.textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: theme
+                                              .colorScheme
+                                              .onSurfaceVariant
+                                              .withValues(alpha: 0.5),
+                                        ),
+                                    isDense: true,
+                                    constraints: const BoxConstraints(
+                                      minHeight: _inputCardsHeight,
+                                      maxHeight: _inputCardsHeight,
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 36),
+                            ],
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                  const Spacer(),
-                  IconButton.filled(
-                    onPressed: _hasPendingChanges ? _save : null,
-                    icon: const Icon(Icons.check, size: 20),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Divider(color: theme.colorScheme.outlineVariant),
+                    const SizedBox(height: 4),
+                    SectionToggle(
+                      title: 'Moves',
+                      expanded: _movesExpanded,
+                      onPressed: () {
+                        setState(() => _movesExpanded = !_movesExpanded);
+                      },
+                    ),
+                    if (_movesExpanded)
+                      ..._moves.asMap().entries.map(
+                        (entry) =>
+                            _buildMoveRow(context, entry.value, entry.key),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    IconButton.filled(
+                      onPressed: _generatingGif
+                          ? null
+                          : () => Navigator.pop(context),
+                      style: IconButton.styleFrom(
+                        backgroundColor: fillColor,
+                        foregroundColor: theme.colorScheme.onSurface,
+                      ),
+                      icon: const Icon(Icons.chevron_left, size: 22),
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton.filled(
+                          onPressed: _share,
+                          style: IconButton.styleFrom(
+                            backgroundColor: fillColor,
+                            foregroundColor: theme.colorScheme.onSurface,
+                            side: _plyValidity.any((v) => !v)
+                                ? BorderSide(color: theme.colorScheme.error)
+                                : null,
+                          ),
+                          icon: const Icon(Icons.share, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        IconButton.filled(
+                          onPressed: _generatingGif ? null : _createGif,
+                          tooltip: 'Create GIF',
+                          style: IconButton.styleFrom(
+                            backgroundColor: fillColor,
+                            foregroundColor: theme.colorScheme.onSurface,
+                          ),
+                          icon: _generatingGif
+                              ? SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    value: _gifProgress,
+                                  ),
+                                )
+                              : const Icon(Icons.gif_box_outlined, size: 20),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    IconButton.filled(
+                      onPressed: _hasPendingChanges && !_generatingGif
+                          ? _save
+                          : null,
+                      icon: const Icon(Icons.check, size: 20),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -3,8 +3,8 @@ import 'dart:typed_data';
 import 'package:dartchess/dartchess.dart';
 import 'package:image/image.dart' as img;
 
-List<String> mainlineFens(List<String> sans) {
-  Position position = Chess.initial;
+List<String> mainlineFens(Position start, List<String> sans) {
+  Position position = start;
   final fens = <String>[position.fen];
 
   for (final san in sans) {
@@ -25,20 +25,40 @@ List<String> mainlineFens(List<String> sans) {
   return fens;
 }
 
+const maxGifFrames = 200;
+
+List<String> capGifFrames(List<String> fens, {int maxFrames = maxGifFrames}) {
+  if (fens.length <= maxFrames) return fens;
+  if (maxFrames <= 1) return [fens.last];
+
+  return [
+    for (var i = 0; i < maxFrames; i++)
+      fens[(i * (fens.length - 1) / (maxFrames - 1)).round()],
+  ];
+}
+
 typedef GifEncodeInput = ({List<Uint8List> frames, int frameDuration});
 
 Uint8List? encodeGifFrames(GifEncodeInput input) {
-  final images = input.frames
-      .map(img.decodePng)
-      .whereType<img.Image>()
-      .toList();
-  if (images.isEmpty) return null;
+  if (input.frames.isEmpty) return null;
 
-  final quantizer = img.NeuralQuantizer(images.first);
+  final firstImage = img.decodePng(input.frames.first);
+  if (firstImage == null) return null;
+
+  final quantizer = img.NeuralQuantizer(firstImage);
   final encoder = img.GifEncoder(repeat: 0);
-  for (final image in images) {
-    final paletted = img.ditherImage(image, quantizer: quantizer);
-    encoder.addFrame(paletted, duration: input.frameDuration);
+  encoder.addFrame(
+    img.ditherImage(firstImage, quantizer: quantizer),
+    duration: input.frameDuration,
+  );
+
+  for (final png in input.frames.skip(1)) {
+    final image = img.decodePng(png);
+    if (image == null) continue;
+    encoder.addFrame(
+      img.ditherImage(image, quantizer: quantizer),
+      duration: input.frameDuration,
+    );
   }
   return encoder.finish();
 }
