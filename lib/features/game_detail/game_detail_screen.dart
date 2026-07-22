@@ -240,6 +240,11 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
       orElse: () => PieceSet.cburnett,
     );
 
+    await Future.wait([
+      for (final asset in pieceSet.assets.values) precacheImage(asset, context),
+    ]);
+    if (!mounted) return [];
+
     var currentFen = fens.first;
     late OverlayEntry entry;
     entry = OverlayEntry(
