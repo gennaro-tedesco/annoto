@@ -14,6 +14,8 @@ final selectedEnginePackageNotifier = ValueNotifier<String?>(null);
 final analysisDepthNotifier = ValueNotifier<int>(18);
 final keepAnalysisAliveNotifier = ValueNotifier<bool>(true);
 final engineArrowsNotifier = ValueNotifier<bool>(true);
+final gifPixelRatioNotifier = ValueNotifier<double>(2.0);
+final gifFrameDurationNotifier = ValueNotifier<int>(60);
 
 const boardColorSchemes = <(String, ChessboardColorScheme)>[
   ('Brown', ChessboardColorScheme.brown),

@@ -14,6 +14,8 @@ abstract final class SettingsService {
   static const _keyAnalysisDepth = 'analysisDepth';
   static const _keyKeepAnalysisAlive = 'keepAnalysisAlive';
   static const _keyEngineArrows = 'engineArrows';
+  static const _keyGifPixelRatio = 'gifPixelRatio';
+  static const _keyGifFrameDuration = 'gifFrameDuration';
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -79,6 +81,16 @@ abstract final class SettingsService {
       engineArrowsNotifier.value = engineArrows;
     }
 
+    final gifPixelRatio = prefs.getDouble(_keyGifPixelRatio);
+    if (gifPixelRatio != null) {
+      gifPixelRatioNotifier.value = gifPixelRatio;
+    }
+
+    final gifFrameDuration = prefs.getInt(_keyGifFrameDuration);
+    if (gifFrameDuration != null) {
+      gifFrameDurationNotifier.value = gifFrameDuration;
+    }
+
     themeNotifier.addListener(
       () => prefs.setString(_keyTheme, themeNotifier.value.name),
     );
@@ -118,6 +130,12 @@ abstract final class SettingsService {
     );
     engineArrowsNotifier.addListener(
       () => prefs.setBool(_keyEngineArrows, engineArrowsNotifier.value),
+    );
+    gifPixelRatioNotifier.addListener(
+      () => prefs.setDouble(_keyGifPixelRatio, gifPixelRatioNotifier.value),
+    );
+    gifFrameDurationNotifier.addListener(
+      () => prefs.setInt(_keyGifFrameDuration, gifFrameDurationNotifier.value),
     );
   }
 }

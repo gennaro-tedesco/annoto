@@ -1,10 +1,21 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:annoto/app/themes.dart';
 import 'package:annoto/models/move_pair.dart';
 import 'package:annoto/models/scoresheet.dart';
 import 'package:annoto/repositories/scoresheet_repository.dart';
+import 'package:annoto/services/gif_export_service.dart';
 import 'package:annoto/services/notification_service.dart';
 import 'package:annoto/services/pgn_validator.dart';
 import 'package:annoto/widgets/section_toggle.dart';
+import 'package:chessground/chessground.dart';
+import 'package:dartchess/dartchess.dart' show Side;
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 class GameDetailScreen extends StatefulWidget {
@@ -29,8 +40,11 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   String _initialFullPgn = '';
   String _initialPgn = '';
   MovePair? _editingMove;
+  bool _generatingGif = false;
+  double? _gifProgress;
 
   static const double _inputCardsHeight = 30.0;
+  static const double _gifBoardSize = 480.0;
 
   @override
   void didChangeDependencies() {
@@ -159,6 +173,123 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
   Future<void> _share() async {
     final path = await scoresheetRepository.getFilePath(_scoresheet.id);
     await Share.shareXFiles([XFile(path, mimeType: 'application/x-chess-pgn')]);
+  }
+
+  List<String> get _sansForGif {
+    final sans = _moves
+        .expand((m) => [m.white.text.trim(), m.black.text.trim()])
+        .toList();
+    while (sans.isNotEmpty && sans.last.isEmpty) {
+      sans.removeLast();
+    }
+    return sans;
+  }
+
+  Future<void> _createGif() async {
+    if (_generatingGif) return;
+
+    final fens = mainlineFens(_sansForGif);
+    if (fens.length < 2) {
+      NotificationService.showError('No moves to export.');
+      return;
+    }
+
+    setState(() {
+      _generatingGif = true;
+      _gifProgress = 0;
+    });
+
+    try {
+      final frames = await _captureGifFrames(fens);
+      if (mounted) setState(() => _gifProgress = null);
+      final gifBytes = await compute(encodeGifFrames, (
+        frames: frames,
+        frameDuration: gifFrameDurationNotifier.value,
+      ));
+      if (gifBytes == null) throw Exception('GIF encoding failed.');
+
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${_scoresheet.id}.gif');
+      await file.writeAsBytes(gifBytes);
+
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(file.path, mimeType: 'image/gif')]);
+    } catch (_) {
+      if (mounted) NotificationService.showError('Failed to create GIF.');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _generatingGif = false;
+          _gifProgress = null;
+        });
+      }
+    }
+  }
+
+  Future<List<Uint8List>> _captureGifFrames(List<String> fens) async {
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final boundaryKey = GlobalKey();
+    final scheme = boardColorSchemes
+        .firstWhere(
+          (e) => e.$1 == boardColorSchemeNotifier.value,
+          orElse: () => boardColorSchemes.first,
+        )
+        .$2;
+    final pieceSet = PieceSet.values.firstWhere(
+      (s) => s.name == boardPieceSetNotifier.value,
+      orElse: () => PieceSet.cburnett,
+    );
+
+    var currentFen = fens.first;
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => Positioned(
+        left: -_gifBoardSize * 2,
+        top: 0,
+        child: RepaintBoundary(
+          key: boundaryKey,
+          child: SizedBox(
+            width: _gifBoardSize,
+            height: _gifBoardSize,
+            child: Chessboard.fixed(
+              size: _gifBoardSize,
+              orientation: Side.white,
+              fen: currentFen,
+              settings: ChessboardSettings(
+                colorScheme: scheme,
+                pieceAssets: pieceSet.assets,
+                animationDuration: Duration.zero,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+
+    final frames = <Uint8List>[];
+    try {
+      for (var i = 0; i < fens.length; i++) {
+        currentFen = fens[i];
+        entry.markNeedsBuild();
+        await WidgetsBinding.instance.endOfFrame;
+        await WidgetsBinding.instance.endOfFrame;
+
+        final boundary =
+            boundaryKey.currentContext!.findRenderObject()
+                as RenderRepaintBoundary;
+        final image = await boundary.toImage(
+          pixelRatio: gifPixelRatioNotifier.value,
+        );
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        frames.add(byteData!.buffer.asUint8List());
+
+        if (mounted) setState(() => _gifProgress = (i + 1) / fens.length);
+      }
+    } finally {
+      entry.remove();
+    }
+    return frames;
   }
 
   Future<void> _save() async {
@@ -315,16 +446,40 @@ class _GameDetailScreenState extends State<GameDetailScreen> {
                     icon: const Icon(Icons.chevron_left, size: 22),
                   ),
                   const Spacer(),
-                  IconButton.filled(
-                    onPressed: _share,
-                    style: IconButton.styleFrom(
-                      backgroundColor: fillColor,
-                      foregroundColor: theme.colorScheme.onSurface,
-                      side: _plyValidity.any((v) => !v)
-                          ? BorderSide(color: theme.colorScheme.error)
-                          : null,
-                    ),
-                    icon: const Icon(Icons.share, size: 20),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton.filled(
+                        onPressed: _share,
+                        style: IconButton.styleFrom(
+                          backgroundColor: fillColor,
+                          foregroundColor: theme.colorScheme.onSurface,
+                          side: _plyValidity.any((v) => !v)
+                              ? BorderSide(color: theme.colorScheme.error)
+                              : null,
+                        ),
+                        icon: const Icon(Icons.share, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton.filled(
+                        onPressed: _generatingGif ? null : _createGif,
+                        tooltip: 'Create GIF',
+                        style: IconButton.styleFrom(
+                          backgroundColor: fillColor,
+                          foregroundColor: theme.colorScheme.onSurface,
+                        ),
+                        icon: _generatingGif
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  value: _gifProgress,
+                                ),
+                              )
+                            : const Icon(Icons.gif_box_outlined, size: 20),
+                      ),
+                    ],
                   ),
                   const Spacer(),
                   IconButton.filled(
