@@ -132,7 +132,7 @@ class AppThemes {
           text: const Color(0xFF9FABAD),
           subtext: const Color(0xFF586E74),
           error: const Color(0xFFDC312E),
-          outline: const Color(0xFF073541),
+          outline: const Color(0xFF1F5A61),
         ),
         AppThemeOption.lightSolar => _build(
           fontScale: fontScale,
