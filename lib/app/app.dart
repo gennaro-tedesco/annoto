@@ -84,9 +84,7 @@ class _AnnotoAppState extends State<AnnotoApp> {
               darkTheme: appFontNotifier.value.apply(
                 AppThemes.systemDark(fontScale: uiFontScaleNotifier.value),
               ),
-              themeMode: themeNotifier.value == AppThemeOption.none
-                  ? ThemeMode.system
-                  : ThemeMode.light,
+              themeMode: ThemeMode.light,
               routes: {
                 AccountScreen.routeName: (_) => const AccountScreen(),
                 ProviderScreen.routeName: (_) => const ProviderScreen(),
